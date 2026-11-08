@@ -18,14 +18,13 @@ builder.Services.AddProblemDetails(options =>
         }
     };
 });
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

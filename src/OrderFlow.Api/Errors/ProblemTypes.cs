@@ -18,6 +18,9 @@ public static class ProblemTypes
     public const string Timeout = Base + "timeout";
     public const string Internal = Base + "internal";
 
+    ///<summary>
+    /// Gets the problem type URI for a given HTTP status code.
+    ///</summary> 
     public static string? GetProblemTypeForStatusCode(int? statusCode) =>
         statusCode switch
         {
