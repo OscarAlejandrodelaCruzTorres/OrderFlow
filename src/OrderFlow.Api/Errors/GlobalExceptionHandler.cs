@@ -52,4 +52,3 @@ public sealed partial class GlobalExceptionHandler(IProblemDetailsService proble
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception while processing {Method} {Path}.")]
     private static partial void LogUnhandledException(ILogger logger, Exception exception, string method, PathString path);
 }
-

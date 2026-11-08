@@ -1,6 +1,10 @@
-@OrderFlow.Api_HostAddress = http://localhost:5102
+@host = https://localhost:7007
 
-GET {{OrderFlow.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+   ### 404 → #not-found
+   GET {{host}}/nada
+
+   ### 405 → link de tools.ietf.org
+   POST {{host}}/weatherforecast
+
 
 ###
