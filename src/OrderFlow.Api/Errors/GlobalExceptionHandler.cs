@@ -3,24 +3,19 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OrderFlow.Api.Errors;
 
-public sealed partial class GlobalExceptionHandler : IExceptionHandler
+public sealed partial class GlobalExceptionHandler(IProblemDetailsService problemDetailsService, ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
 
-    private readonly IProblemDetailsService _problemDetailsService;
-    private readonly ILogger<GlobalExceptionHandler> _logger;
+    private readonly IProblemDetailsService _problemDetailsService = problemDetailsService;
+    private readonly ILogger<GlobalExceptionHandler> _logger = logger;
 
-    public GlobalExceptionHandler(IProblemDetailsService problemDetailsService, ILogger<GlobalExceptionHandler> logger)
-    {
-        _problemDetailsService = problemDetailsService;
-        _logger = logger;
-    }
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
         int statusCode;
         string title;
         string type;
 
-        if(exception is OperationCanceledException)
+        if (exception is OperationCanceledException)
         {
             statusCode = StatusCodes.Status504GatewayTimeout;
             title = "The request timed out";
@@ -49,7 +44,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
                 Title = title,
                 Type = type
             }
-            });
+        });
     }
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Method} {Path} was cancelled server-side.")]
     private static partial void LogRequestCancelled(ILogger logger, Exception exception, string method, PathString path);
