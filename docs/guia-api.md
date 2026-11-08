@@ -77,7 +77,7 @@ Respuesta:
 Siempre ProblemDetails (RFC 9457), con el `type` del catálogo de `docs/errores.md`:
 ```json
 {
-  "type": "https://github.com/<tu-usuario>/OrderFlow/blob/main/docs/errores.md#business-rule",
+  "type": "https://github.com/OscarAlejandrodelaCruzTorres/OrderFlow/blob/main/docs/errores.md#business-rule",
   "title": "Business rule violated.",
   "status": 422,
   "detail": "Product SKU-001 has 5 units available; 6 were requested.",

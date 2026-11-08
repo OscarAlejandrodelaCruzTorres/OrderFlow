@@ -1,7 +1,7 @@
 # Catálogo de errores
 
 Cada error de la API es un ProblemDetails cuyo `type` apunta a una sección de este archivo
-(`https://github.com/<tu-usuario>/OrderFlow/blob/main/docs/errores.md#<ancla>`). El `title` es estable; el `detail`
+(`https://github.com/OscarAlejandrodelaCruzTorres/OrderFlow/blob/main/docs/errores.md#<ancla>`). El `title` es estable; el `detail`
 explica el caso concreto. Siempre incluye `traceId`. Los tipos se implementan en F0 (base) y F6 (dominio).
 
 ## validation
