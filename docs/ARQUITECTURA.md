@@ -1,7 +1,7 @@
 # OrderFlow — Arquitectura y plan de trabajo
 
 Documento de referencia del proyecto. Lo leen los agentes al empezar cada fase y lo actualiza docs-keeper cuando una
-decisión cambia. Versión 6 · 2026-11-06.
+decisión cambia. Versión 7 · 2026-11-08.
 
 ---
 
@@ -45,6 +45,7 @@ Observaciones sobre Shop (no se copian tal cual):
 | 1 | Migraciones Code First, dos contextos (catálogo y tenant) | alta de tenants y evolución del esquema por código | F1–F2 |
 | 2 | Multi-tenancy: resolución del tenant, enrutamiento de conexión, `SESSION_CONTEXT`, filtros globales | aislamiento de datos, base compartida + dedicadas (en dos pasos) | F3 (compartida), F4 (dedicadas) |
 | 3 | Aprovisionamiento y migración de tenants por endpoint | nadie vuelve a ejecutar SQL a mano | F4 |
+| 37 | Base de datos en **Azure SQL desde F1** (ADR 15): servidor solo Entra, free tier, firewall, reintentos, SKU explícito para dedicadas | experiencia real de nube desde el inicio, con costo controlado | F1, F4 |
 | 4 | Versionado de API (`/api/v1`) y headers de deprecación (`Sunset`) | cambiar contratos sin romper clientes | F0 |
 | 5 | Options pattern con validación al arrancar (`ValidateOnStart`) | configuración errónea = la app no arranca | F0 |
 | 6 | Fundamentos de código: `Directory.Build.props`, `Directory.Packages.props`, analizadores, `.editorconfig`, advertencias como errores | calidad uniforme desde el día uno; después cuesta mucho meterlo | F0 |
@@ -103,8 +104,11 @@ Observaciones sobre Shop (no se copian tal cual):
    SQL **y** filtro global de EF. **Se introduce en dos pasos:** F3 resuelve solo tenants de la base compartida;
    F4 agrega el enrutamiento a bases dedicadas junto con su alta. El modelo híbrido es la decisión más costosa del
    diseño (duplica la matriz de pruebas y el enrutamiento), así que entra cuando lo compartido ya está probado.
-4. **Dos identidades de base.** La app usa un login de mínimo privilegio; el aprovisionamiento usa una cadena de
-   administración (dbcreator) que solo inyecta el servicio de alta. Nunca `sa` fuera de desarrollo.
+4. **Dos identidades de base.** La app usa una identidad de mínimo privilegio (lectura/escritura y ejecución en su
+   base); el aprovisionamiento usa una identidad con permiso para crear bases (en Azure SQL, el rol de servidor
+   `##MS_DatabaseManager##`) que solo inyecta el servicio de alta. Con Azure SQL (ADR 15) ambas son **identidades de
+   Entra ID**, sin contraseñas: en desarrollo tu cuenta (`az login`), en Azure Managed Identities. Nunca `sa` ni
+   logins SQL con contraseña; Docker local solo para pruebas y referencia.
 5. **Contratos.** Entra un `XxxRequest`, sale un `XxxResponse`; las entidades no cruzan el servicio. Enums como texto.
    Listas en un sobre `{ items, page, pageSize, totalCount }`. El OpenAPI es la fuente del cliente TypeScript.
 6. **Errores.** Un único manejador global; el dominio lanza excepciones tipadas (`NotFound`, `Conflict`,
@@ -152,8 +156,8 @@ Observaciones sobre Shop (no se copian tal cual):
       eventos en **Azure Functions, modelo isolated, .NET 10, plan Flex Consumption**. El modelo in-process está en
       retiro, el plan Linux Consumption también (sin funciones nuevas desde 2025, retiro en 2028) y el soporte de
       .NET 8 y 9 en Functions termina en noviembre de 2026: se arranca directo en .NET 10 y Flex.
-    - **Datos:** **Azure SQL Database** (oferta serverless gratuita para desarrollo) para el catálogo y la base
-      compartida; un tenant dedicado = una base, con **elastic pool** como opción de costo cuando haya varios.
+    - **Datos:** **Azure SQL Database desde F1** (ADR 15): free tier para el catálogo y la base compartida; un tenant
+      dedicado = una base creada con SKU explícito, con **elastic pool** como opción de producción cuando haya varios.
       **Blob Storage** para las exportaciones de tenant de F4. Cosmos DB descartado: el modelo es relacional y la RLS
       es de SQL Server.
     - **Mensajería:** el Outbox de F7 publica en **Service Bus** (topic por tipo de evento); la Function lo consume.
@@ -175,6 +179,34 @@ Observaciones sobre Shop (no se copian tal cual):
     - **Opcional, fuera del núcleo:** API Management (el equivalente a lo que haces en MuleSoft; buen laboratorio de
       políticas, cuotas y versiones), Durable Functions (candidata natural para orquestar el alta de un tenant
       dedicado), App Service (alternativa más simple a Container Apps).
+15. **La base de datos vive en Azure SQL desde F1.** Las bases `OrderFlowCF_*` no se crean en Docker sino en un
+    servidor lógico de Azure SQL de la suscripción personal (cuenta gratuita creada el 2026-11-08, con presupuesto de
+    10 USD/mes y alertas de costo real y pronóstico).
+    - **Servidor:** autenticación **solo Entra ID** (sin logins SQL); administrador de Entra = tu cuenta; regla de
+      firewall con tu IP (se actualiza si cambia). Definido en **Bicep** desde F1 (`infra/`), no a mano.
+    - **Catálogo y compartida:** **free tier** (hasta 10 bases por suscripción, 100,000 vCore-segundos y 32 GB al mes
+      cada una) con el comportamiento **"pausar hasta el mes siguiente"** al agotar la cuota: costo cero garantizado.
+    - **Tenants dedicados (F4):** el servicio de alta crea la base con **SKU explícito y barato**
+      (`CREATE DATABASE … (EDITION = 'Basic', SERVICE_OBJECTIVE = 'Basic', MAXSIZE = 2 GB)`) y solo después aplica
+      `MigrateAsync`. **Nunca se deja que EF cree la base**: usaría el SKU por defecto (General Purpose provisionado,
+      cientos de dólares al mes). Crear una base en Azure es asíncrono, lo que encaja con el `202 Accepted` del ADR 9.
+      Los tenants de prueba se dan de baja al terminar cada sesión. En producción la respuesta sería un elastic pool.
+    - **Conexión:** `Authentication=Active Directory Default` (tu `az login` en desarrollo, Managed Identity en
+      Azure), `Encrypt=True`, `Connect Timeout=60` y **`EnableRetryOnFailure` desde F1**: la base free tier se pausa tras
+      15 minutos sin uso y la primera conexión tarda en despertarla. Con reintentos activos, las transacciones explícitas
+      se ejecutan dentro de `Database.CreateExecutionStrategy()` (F6).
+    - **Restricciones de Azure SQL Database que el diseño ya respeta:** sin consultas entre bases (cada contexto se
+      conecta a su base), sin `USE`, sin SQL Agent. RLS, `SESSION_CONTEXT`, tablas temporales y columnas calculadas
+      funcionan igual que en SQL Server 2022.
+    - **Lo que se queda en Docker local:** las **pruebas de integración** (Testcontainers; nunca contra Azure: rapidez,
+      costo y aislamiento) y las **bases de referencia** (`OrderFlow`, `OrderFlow_*`, `OrderFlowCatalog`).
+    - **MCP:** dos servidores en Claude Code: `sqlserver` (Docker local, referencia) y `sqlserver-azure` (servidor de
+      Azure con Entra), para revisar las bases nuevas y compararlas con la referencia.
+    - **Hábitos de costo:** cerrar SSMS y Azure Data Studio al terminar (una conexión abierta impide la pausa y consume
+      cuota); alerta en la métrica *Free amount remaining*; borrar tenants dedicados de prueba.
+    - **Alternativas descartadas:** todo en Docker hasta F12 (se pierde la práctica de nube real durante cuatro meses);
+      pool de bases free precreadas para dedicadas (costo cero pero lógica de asignación que no aporta a F4); dedicadas
+      en Docker y el resto en Azure (dos entornos mezclados).
 
 ## 4. Plan por fases
 
@@ -203,11 +235,20 @@ El esquema de F2 y las reglas de F6 se derivan de aquí; cada prueba de F6 cita 
 *Listo cuando:* cada caso de uso tiene actor, flujo principal, alternativos y criterios de aceptación, y las preguntas
 abiertas están resueltas o marcadas como decisión pendiente.
 
-#### F1 — Catálogo Code First
-`CatalogTenant`, `CatalogDbContext` + configuración Fluent, primera migración, base creada por código; primera prueba
-de integración con Testcontainers.
-*Listo cuando:* `catalog.Tenants` tiene PK, UNIQUE de slug, CHECK de formato, defaults y rowversion, y la prueba aplica
-la migración en una base vacía.
+#### F1 — Catálogo Code First en Azure SQL
+**Arranque de Azure (ADR 15):** resource group `rg-orderflow-dev`; servidor lógico de Azure SQL con autenticación solo
+Entra (administrador = tu cuenta); regla de firewall para tu IP; bases free tier `OrderFlowCF_Catalog` y
+`OrderFlowCF_Shared` con "pausar al agotar"; todo definido en `infra/main.bicep` y desplegado con
+`az deployment group create`. Alerta de pronóstico en el presupuesto y alerta en *Free amount remaining*. MCP
+`sqlserver-azure` registrado en Claude Code.
+**Código:** `CatalogTenant`, `CatalogDbContext` + configuración Fluent, cadena con `Authentication=Active Directory
+Default`, `EnableRetryOnFailure` y timeout de 60 s; primera migración aplicada a `OrderFlowCF_Catalog` en Azure;
+primera prueba de integración con Testcontainers (local).
+*Listo cuando:* `catalog.Tenants` en Azure tiene PK, UNIQUE de slug, CHECK de formato, defaults y rowversion (verificado
+con el MCP `sqlserver-azure`); la migración se aplicó desde tu PC **sin ninguna contraseña**; borrar el resource group y
+volver a desplegar los Bicep recrea servidor y bases; la prueba de integración aplica la migración en un contenedor
+vacío; y el costo del mes sigue en 0.
+Estimado: 12–15 horas (incluye el arranque de Azure).
 
 #### F2 — Esquema del tenant Code First
 OrderStatuses, TenantOrderCounters, Categories, Customers, Products (temporal), Orders, OrderItems, OrderStatusHistory,
@@ -220,7 +261,9 @@ inválidos. Pruebas unitarias del dominio para cada regla RN-xx disponible, sin 
 Además: **generador de datos de demostración** con Bogus (proyecto o herramienta `OrderFlow.Seeder`): por tenant,
 volumen configurable (p. ej. 500 clientes, 200 productos, 5 000 órdenes con líneas y movimientos coherentes), semilla
 fija para que sea reproducible; nunca corre en producción.
-*Listo cuando:* `compare_schemas` contra la `OrderFlow` actual muestra solo diferencias explicadas (las esperadas:
+*Listo cuando:* las migraciones están aplicadas a `OrderFlowCF_Shared` en Azure; aplicadas también a una base
+local de comparación (`OrderFlowCF_Compare` en Docker), `compare_schemas` contra la `OrderFlow` actual muestra solo
+diferencias explicadas (las esperadas:
 los triggers de total, stock e historial ya no existen porque su lógica pasó al dominio); las pruebas de integración
 verifican RLS, constraints y la inmutabilidad del ledger; las pruebas unitarias cubren total, transiciones y movimientos;
 y el generador llena un tenant de prueba **usando los métodos del dominio**, respetando todas las reglas.
@@ -239,13 +282,17 @@ elegido funciona de punta a punta; token sin tenant o con tenant inactivo → 40
 #### F4 — Tenants dedicados y ciclo de vida por endpoint
 **Enrutamiento a bases dedicadas:** la cadena de `TenantDbContext` se elige según el modelo del tenant en el catálogo;
 las pruebas de aislamiento de F3 se repiten con un tenant dedicado.
+**Creación de bases dedicadas en Azure (ADR 15):** el servicio de alta ejecuta `CREATE DATABASE` con SKU explícito
+(Basic), espera a que la base esté en línea (operación asíncrona, de ahí el 202) y luego aplica `MigrateAsync` y la
+semilla. La identidad de aprovisionamiento tiene `##MS_DatabaseManager##` en el servidor; la de la app no.
 `POST /api/admin/tenants` (compartido o dedicado; dedicado responde **202** con operación consultable; idempotente por
 slug), `POST /api/admin/tenants/migrate` (202, todas las bases pendientes), `GET /api/v1/operations/{id}`,
 `GET /api/admin/tenants`, desactivar, **exportar datos del tenant**, **dar de baja** (archivar o eliminar su base con
 confirmación explícita). Cadena de administración separada. Health por tenant.
 *Listo cuando:* crear un tenant dedicado por la API deja una base idéntica a la plantilla (0 diferencias), un usuario
 de ese tenant opera contra su propia base con el mismo comportamiento que uno compartido, repetir la llamada no duplica
-nada, y la baja de un tenant de prueba deja su exportación y ninguna fila suya en la base compartida.
+nada, la base dedicada quedó en el SKU Basic (no en el de por defecto), y la baja de un tenant de prueba deja su
+exportación, ninguna fila suya en la base compartida y su base eliminada de Azure.
 
 #### F5 — Lecturas
 Categorías, productos (incluido historial temporal), clientes, órdenes con detalle. Sobre de paginación, filtros, orden
@@ -256,7 +303,8 @@ por lista blanca, búsqueda "contiene" con escape, proyecciones, `AsNoTracking`,
 #### F6 — Escrituras y reglas de negocio
 Alta/edición de clientes, productos, categorías; orden con líneas en una transacción: el **servicio orquesta** (carga,
 llama al dominio, obtiene el OrderNumber del contador, persiste orden + líneas + movimientos + historial en un solo
-`SaveChanges`) y el **dominio decide** (total, existencia, transiciones); máquina de estados (409); FluentValidation; errores tipados y `docs/errores.md`; permisos por recurso
+`SaveChanges`, dentro de la estrategia de ejecución de EF por los reintentos del ADR 15) y el **dominio decide**
+(total, existencia, transiciones); máquina de estados (409); FluentValidation; errores tipados y `docs/errores.md`; permisos por recurso
 en acciones sensibles; `ETag`/`If-Match` → 412; `Idempotency-Key` en `POST /orders`.
 *Listo cuando:* pruebas cubren sobreventa (rechazada), transición inválida (409), edición concurrente (412), acción sin
 permiso (403) y reintento con la misma `Idempotency-Key` (misma respuesta, sin duplicar); **cada regla RN-xx de
@@ -290,11 +338,13 @@ migración de tenants.
 aplicación, nunca SQL generado por el modelo.
 
 #### F12 — Azure (paso 12 acordado, ADR 14)
-1. **Fundamentos:** suscripción con alerta de presupuesto, resource group `rg-orderflow-dev`, todo en **Bicep**.
+1. **Fundamentos:** el resource group, el presupuesto y el servidor de Azure SQL ya existen desde F1; los Bicep de
+   `infra/` crecen con el resto de los recursos.
 2. **Identidad:** Managed Identity para la API y la Function; asignaciones RBAC mínimas; `DefaultAzureCredential` en
    el código.
-3. **Datos:** Azure SQL (catálogo y compartida) con usuario de base de datos ligado a la Managed Identity; migraciones
-   aplicadas con `efbundle` desde el pipeline; Blob Storage para exportaciones de tenant.
+3. **Datos:** usuarios de base de datos de Azure SQL ligados a las Managed Identities (la de la app con mínimo
+   privilegio, la de aprovisionamiento con `##MS_DatabaseManager##`); migraciones aplicadas con `efbundle` desde el
+   pipeline; Blob Storage para exportaciones de tenant.
 4. **Secretos:** Key Vault como fuente de configuración (solo para lo que no admite Managed Identity).
 5. **API:** imagen de F10 en Container Apps, con los health probes de liveness/readiness/startup de F0.
 6. **Eventos:** Outbox → Service Bus → **Function isolated .NET 10 en Flex Consumption** (trigger de Service Bus);
@@ -306,7 +356,7 @@ aplicación, nunca SQL generado por el modelo.
 *Listo cuando:* los Bicep levantan todo desde cero con un solo despliegue; no existe ningún connection string ni llave
 en la configuración de la API ni de la Function; crear una orden en la API desplegada produce un evento que la Function
 procesa, visible como una sola traza en App Insights; y borrar el resource group elimina todo el costo.
-Estimado: 25–35 horas.
+Estimado: 20–28 horas (la base de datos ya vive en Azure desde F1).
 
 ### Lab GraphQL (opcional; requiere F3 y F5)
 Endpoint `/graphql` de **solo lectura** con **Hot Chocolate**, en el mismo host, reutilizando los servicios de
@@ -347,28 +397,30 @@ Estimado: 12–15 horas. Se agenda después del Bloque 1, o antes si una vacante
 entre semana de 2 horas (una para escribir código, otra para revisión y práctica de entrevista) y un bloque de 6 horas
 el fin de semana para lo más pesado de cada fase.
 
-**Objetivo del Bloque 1:** F0–F6 (incluida F0.5), Angular A0–A2 y el README de portafolio con demo, **≈ 150–160 horas,
-terminando a finales de febrero de 2027**. A3–A4 pasan al inicio del Bloque 2.
+**Objetivo del Bloque 1:** F0–F6 (incluida F0.5), Angular A0–A2 y el README de portafolio con demo, **≈ 160–170 horas,
+terminando a mediados de marzo de 2027**. A3–A4 pasan al inicio del Bloque 2. (Versión 7: el arranque de Azure en F1
+suma unas 5 horas y las fiestas se calculan a medio ritmo; por eso el cierre se mueve dos semanas.)
 
 | Semanas | Fechas | Fase | Entregable |
 | --- | --- | --- | --- |
 | 1–2 | 9 – 22 nov | F0 | host completo, guía de estilo de la API, README inicial, repo en GitHub |
-| 3 | 23 – 29 nov | F0.5 + F1 | casos de uso con reglas RN-xx; catálogo creado por migración |
-| 4–5 | 30 nov – 13 dic | F2 | esquema por migraciones, RLS probada, modelo de dominio con sus reglas, generador |
-| 6–7 | 14 – 27 dic | F3 | proveedor de identidad, tenancy (base compartida) y permisos (semana 7 a medio ritmo) |
-| 8 | 28 dic – 3 ene | A0 | proyecto Angular base (medio ritmo) |
-| 9–10 | 4 – 17 ene | F4 | tenants dedicados; alta, migración, exportación y baja por endpoint |
-| 11–12 | 18 – 31 ene | F5 + A1 | lecturas con volumen real; login y manejo de errores en Angular |
-| 13–15 | 1 – 21 feb | F6 | escrituras, reglas de negocio, concurrencia, idempotencia |
-| 16 | 22 – 28 feb | A2 + portafolio | cliente TypeScript generado y una lista; README final y video demo |
+| 3–4 | 23 nov – 6 dic | F0.5 + F1 | casos de uso con reglas RN-xx; Azure SQL con Bicep; catálogo creado por migración |
+| 5–6 | 7 – 20 dic | F2 | esquema por migraciones en Azure, RLS probada, modelo de dominio con sus reglas, generador |
+| 7–9 | 21 dic – 10 ene | F3 | proveedor de identidad, tenancy (base compartida) y permisos (semanas 7–8 a medio ritmo por fiestas) |
+| 10 | 11 – 17 ene | A0 | proyecto Angular base |
+| 11–12 | 18 – 31 ene | F4 | tenants dedicados en Azure con SKU explícito; alta, migración, exportación y baja |
+| 13–14 | 1 – 14 feb | F5 + A1 | lecturas con volumen real; login y manejo de errores en Angular |
+| 15–17 | 15 feb – 7 mar | F6 | escrituras, reglas de negocio, concurrencia, idempotencia |
+| 18 | 8 – 14 mar | A2 + portafolio | cliente TypeScript generado y una lista; README final y video demo |
 
 **Hitos:**
-- **Fin de la semana 7 (≈ 27 dic): reactivar postulaciones.** Con F0–F3 terminadas ya hay una historia de entrevista
+- **Fin de la semana 9 (≈ 10 ene): reactivar postulaciones.** Con F0–F3 terminadas ya hay una historia de entrevista
   fuerte (Code First, dominio rico con sus reglas probadas, multi-tenant con RLS, identidad real, pruebas contra SQL
-  Server real, MCP y agentes). Actualizar CV y LinkedIn en
-  la semana 8 y postular desde la semana 9, en paralelo al proyecto.
-- **Fin de la semana 16 (≈ 28 feb): Bloque 1 cerrado** y portafolio publicado.
-- **Bloque 2 + A3–A6:** ≈ 140–170 horas más; al mismo ritmo, de marzo a junio–julio de 2027.
+  Server real, base en Azure SQL con Entra y Bicep, MCP y agentes). Actualizar CV y LinkedIn en la semana 10 y
+  postular desde la semana 11, en paralelo al proyecto. Si una vacante buena aparece antes, se postula: la historia de
+  F0–F2 ya es sólida.
+- **Fin de la semana 18 (≈ 14 mar): Bloque 1 cerrado** y portafolio publicado.
+- **Bloque 2 + A3–A6:** ≈ 130–160 horas más; al mismo ritmo, de mediados de marzo a julio–agosto de 2027.
 
 **Reglas del calendario:** si una fase se pasa más de una semana de lo previsto, se revisa el alcance de esa fase (no se
 sacrifica el ritual de entrevista ni las pruebas para alcanzar la fecha). Una semana perdida por trabajo se recorre

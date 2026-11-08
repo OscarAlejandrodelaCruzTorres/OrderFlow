@@ -23,8 +23,9 @@ Estados: **Propuesto** · **Aceptado** · **Reemplazado** · **Descartado**.
 | 012 | El dominio es dueño de las reglas | Aceptado | 2026-11-06 |
 | 013 | Identidad: proveedor externo (elección en F3) | Aceptado; proveedor **pendiente** | 2026-11-06 |
 | 014 | Plataforma Azure | Aceptado | 2026-11-06 |
+| 015 | Base de datos en Azure SQL desde F1 (free tier, solo Entra, SKU explícito para dedicadas) | Aceptado | 2026-11-08 |
 
-El texto de los ADR 001–014 está resumido en `docs/ARQUITECTURA.md`, sección 3. Al cerrar cada fase se completan aquí
+El texto de los ADR 001–015 está resumido en `docs/ARQUITECTURA.md`, sección 3. Al cerrar cada fase se completan aquí
 los que esa fase haya puesto a prueba, con lo aprendido.
 
 ---

@@ -52,6 +52,57 @@ az functionapp identity assign -n func-orderflow-dev01 -g rg-orderflow-dev
 Verifica los parámetros con `az functionapp create --help` antes de correrlo: las opciones de Flex Consumption han
 cambiado entre versiones de la CLI. Al terminar de practicar: `az group delete -n rg-orderflow-dev` borra todo.
 
+## 2.1 Azure SQL para OrderFlow (F1, ADR 15)
+
+En F1 esto se define en `infra/main.bicep`; los comandos sirven para entender qué hace cada pieza.
+
+```bash
+# Tu id de objeto en Entra (para ser el administrador del servidor)
+az ad signed-in-user show --query "{id:id, upn:userPrincipalName}" -o table
+
+# Servidor lógico con autenticación SOLO Entra ID (sin logins SQL)
+az sql server create -n sql-orderflow-dev01 -g rg-orderflow-dev -l eastus \
+  --enable-ad-only-auth --external-admin-principal-type User \
+  --external-admin-name <tu UPN> --external-admin-sid <tu id de objeto>
+
+# Firewall: tu IP pública actual
+az sql server firewall-rule create -s sql-orderflow-dev01 -g rg-orderflow-dev -n casa \
+  --start-ip-address <tu IP> --end-ip-address <tu IP>
+
+# Bases free tier con pausa automática al agotar la cuota (verifica los parámetros con --help)
+az sql db create -s sql-orderflow-dev01 -g rg-orderflow-dev -n OrderFlowCF_Catalog \
+  --edition GeneralPurpose --compute-model Serverless --family Gen5 --capacity 2 \
+  --use-free-limit --free-limit-exhaustion-behavior AutoPause
+az sql db create -s sql-orderflow-dev01 -g rg-orderflow-dev -n OrderFlowCF_Shared \
+  --edition GeneralPurpose --compute-model Serverless --family Gen5 --capacity 2 \
+  --use-free-limit --free-limit-exhaustion-behavior AutoPause
+
+# Comprobar que de verdad son free tier
+az sql db show -s sql-orderflow-dev01 -g rg-orderflow-dev -n OrderFlowCF_Catalog --query "{free:useFreeLimit, onExhaust:freeLimitExhaustionBehavior}"
+```
+
+Cadena de conexión de desarrollo (en `user-secrets`, aunque no lleva secretos):
+```
+Server=tcp:sql-orderflow-dev01.database.windows.net,1433;Database=OrderFlowCF_Catalog;Authentication=Active Directory Default;Encrypt=True;Connect Timeout=60
+```
+
+Tenant dedicado (F4), creado por el servicio de alta **antes** de `MigrateAsync`, nunca por EF:
+```sql
+CREATE DATABASE [OrderFlowCF_Hooli] (EDITION = 'Basic', SERVICE_OBJECTIVE = 'Basic', MAXSIZE = 2 GB);
+```
+
+MCP de Azure para Claude Code (una línea en PowerShell):
+```powershell
+claude mcp add sqlserver-azure "C:\Users\Alejandro Torres\source\repos\SqlServerMcp\publish\SqlServerMcp.exe" --transport stdio --scope user --env "MSSQL_CONNECTION_STRING=Server=tcp:sql-orderflow-dev01.database.windows.net,1433;Database=OrderFlowCF_Shared;Authentication=Active Directory Default;Encrypt=True;Connect Timeout=60" --env "MSSQL_ALLOWED_DATABASES=OrderFlowCF*" --env "MSSQL_TENANT_DATABASES=OrderFlowCF_*" --env MSSQL_TENANT_TEMPLATE=OrderFlowCF_Shared
+```
+Nota: el patrón `OrderFlowCF_*` también incluye al catálogo; en `compare_schemas` ignóralo (no es un tenant).
+En Azure SQL Database cada conexión ve su base y `master`; las herramientas del MCP que consultan
+`sys.databases` muestran menos información que en Docker.
+
+Hábitos de costo: cerrar SSMS/Azure Data Studio al terminar (una conexión abierta impide la pausa), alerta en la
+métrica *Free amount remaining* (avisar al bajar de 10,000 vCore-segundos), y dar de baja los tenants dedicados de
+prueba.
+
 ## 3. Paquetes NuGet clave
 
 | Paquete | Uso |

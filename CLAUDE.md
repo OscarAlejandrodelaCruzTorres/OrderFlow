@@ -24,12 +24,17 @@ arquitectura y portafolio. **Antes de cualquier tarea lee `docs/ARQUITECTURA.md`
     dotnet ef migrations add <Nombre> -p src/OrderFlow.Infrastructure -s src/OrderFlow.Api -c <Contexto> -o <carpeta>
     dotnet ef database update -p src/OrderFlow.Infrastructure -s src/OrderFlow.Api -c <Contexto>
 
-## Entorno local
-- SQL Server 2022 en Docker, contenedor `orderflow-sql`, `localhost,14333`. Credenciales solo en `user-secrets`.
-- **Bases nuevas del proyecto:** `OrderFlowCF_Catalog`, `OrderFlowCF_Shared`, `OrderFlowCF_<Slug>` (dedicadas).
-  Se crean y cambian **solo por migraciones de EF Core**.
-- **Bases de referencia (solo lectura):** `OrderFlowCatalog`, `OrderFlow`, `OrderFlow_*`. Sirven para comparar
-  esquemas con el MCP `sqlserver` (`describe_table`, `compare_schemas`, `explain_query`). Nunca se modifican.
+## Entornos de base de datos (ADR 15)
+- **Azure SQL (bases del proyecto):** servidor lógico en la suscripción personal, autenticación **solo Entra ID**.
+  `OrderFlowCF_Catalog` y `OrderFlowCF_Shared` en free tier; `OrderFlowCF_<Slug>` (dedicadas, desde F4) con SKU Basic
+  explícito, nunca creadas por EF con el SKU por defecto. Conexión `Authentication=Active Directory Default` (tu
+  `az login`), sin contraseñas; reintentos de EF activos. Se crean y cambian **solo por migraciones de EF Core** y la
+  infraestructura **solo por Bicep** (`infra/`). MCP: `sqlserver-azure`.
+- **Docker local** (`orderflow-sql`, `localhost,14333`): pruebas de integración con Testcontainers (nunca contra Azure),
+  base de comparación `OrderFlowCF_Compare`, y **bases de referencia de solo lectura** (`OrderFlowCatalog`,
+  `OrderFlow`, `OrderFlow_*`). MCP: `sqlserver`. Credenciales locales solo en `user-secrets`.
+- **Costo:** presupuesto de 10 USD/mes con alertas. No dejar conexiones abiertas a Azure SQL (impiden la pausa del
+  free tier); los tenants dedicados de prueba se dan de baja al terminar cada sesión.
 
 ## Reglas no negociables (resumen; detalle en los ADR)
 - Capas con fronteras: el host compone con un `AddXxx()` por capa y tiene `DisableTransitiveProjectReferences`.
