@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OrderFlow.Domain\OrderFlow.Domain.csproj" />
+    <ProjectReference Include="..\..\src\OrderFlow.Application\OrderFlow.Application.csproj" />
+    <ProjectReference Include="..\..\src\OrderFlow.Infrastructure\OrderFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\OrderFlow.Composition\OrderFlow.Composition.csproj" />
+    <ProjectReference Include="..\..\src\OrderFlow.Api\OrderFlow.Api.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,27 @@
+<Project>
+  <PropertyGroup>
+    <!-- Una sola versión de .NET y las mismas reglas del lenguaje para toda la solución.
+         Ningún .csproj las repite: así ningún proyecto puede quedar en otra versión por accidente. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Una advertencia rompe el build: el código se mantiene limpio desde el primer commit,
+         no se "limpia después". -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Conjunto recomendado de analizadores de .NET. latest-all sería más estricto,
+         pero genera mucho ruido sin aportar a este proyecto. -->
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Las reglas de estilo (IDE0xxx) del .editorconfig se revisan al compilar, no solo en el editor. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Se genera el archivo de documentación XML porque el compilador lo necesita para aplicar
+         IDE0005 (usings sobrantes) durante el build. Además, OpenAPI en .NET 10 usa esos comentarios
+         para describir los endpoints. CS1591 (falta comentario XML) se silencia: no queremos obligar a
+         comentar cada miembro público; los comentarios se escriben donde explican una decisión. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>
