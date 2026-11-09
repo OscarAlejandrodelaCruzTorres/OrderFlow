@@ -1,20 +1,25 @@
-var builder = WebApplication.CreateBuilder(args);
+using OrderFlow.Api.Extensions;
+using OrderFlow.Composition;
 
-// Add services to the container.
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddOrderFlow(builder.Configuration);
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddApiErrors();
 builder.Services.AddOpenApi();
+builder.Services.AddApiSecurity();
 
 var app = builder.Build();
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 
 app.UseAuthorization();
 

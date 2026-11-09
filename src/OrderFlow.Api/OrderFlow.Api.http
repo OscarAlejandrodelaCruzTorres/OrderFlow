@@ -1,6 +1,18 @@
-@OrderFlow.Api_HostAddress = http://localhost:5102
+### 404 → #not-found
+GET {{host}}/nada
+  
+### 405 → link de tools.ietf.org
+POST {{host}}/weatherforecast
 
-GET {{OrderFlow.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### 401 sin token → #unauthorized
+GET {{host}}/weatherforecast
+
+### 200 con token
+GET {{host}}/weatherforecast
+Authorization: Bearer {{token}}
+
+### 403 con token sin el rol → #forbidden
+GET {{host}}/weatherforecast
+Authorization: Bearer {{tokenTenantUser}}
 
 ###
