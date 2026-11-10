@@ -1,4 +1,5 @@
 using OrderFlow.Api.Extensions;
+using OrderFlow.Api.RateLimiting;
 using OrderFlow.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,7 @@ builder.Services.AddControllers();
 builder.Services.AddApiErrors();
 builder.Services.AddOpenApi();
 builder.Services.AddApiSecurity();
+builder.Services.AddApiRateLimiting();
 
 var app = builder.Build();
 app.UseExceptionHandler();
@@ -23,6 +25,8 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
-app.MapControllers();
+app.UseRateLimiter();
+
+app.MapControllers().RequireRateLimiting(RateLimitPolicies.PerUser);
 
 app.Run();

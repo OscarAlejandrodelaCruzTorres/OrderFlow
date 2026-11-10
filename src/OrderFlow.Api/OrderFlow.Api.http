@@ -11,7 +11,7 @@ GET {{host}}/weatherforecast
 GET {{host}}/weatherforecast
 Authorization: Bearer {{token}}
 
-### 403 con token sin el rol → #forbidden
+### 200 con token
 GET {{host}}/weatherforecast
 Authorization: Bearer {{tokenTenantUser}}
 
