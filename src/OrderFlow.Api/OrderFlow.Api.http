@@ -24,4 +24,5 @@ GET {{host}}/health/ready
 ### Health: startup (anónimo) → 200 Healthy
 GET {{host}}/health/startup
 
+
 ###
