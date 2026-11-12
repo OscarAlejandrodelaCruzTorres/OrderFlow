@@ -1,20 +1,6 @@
 ### 404 → #not-found
 GET {{host}}/nada
   
-### 405 → link de tools.ietf.org
-POST {{host}}/api/v1/weatherforecast
-
-### 401 sin token → #unauthorized
-GET {{host}}/api/v1/weatherforecast
-
-### 200 con token
-GET {{host}}/api/v1/weatherforecast
-Authorization: Bearer {{token}}
-
-### 200 con token
-GET {{host}}/api/v1/weatherforecast
-Authorization: Bearer {{tokenTenantUser}}
-
 ### Health: liveness (anónimo) → 200 Healthy
 GET {{host}}/health/live
 
@@ -24,5 +10,19 @@ GET {{host}}/health/ready
 ### Health: startup (anónimo) → 200 Healthy
 GET {{host}}/health/startup
 
+### /me sin token → 401
+GET {{host}}/api/v1/test
+
+### /me con token → 200 con tu nombre y roles
+GET {{host}}/api/v1/test
+Authorization: Bearer {{token}}
+
+### /me/admin con TenantUser → 403 #forbidden
+GET {{host}}/api/v1/test/admin
+Authorization: Bearer {{tokenTenantUser}}
+
+### /me/admin con PlatformAdmin → 200
+GET {{host}}/api/v1/test/admin
+Authorization: Bearer {{token}}
 
 ###
