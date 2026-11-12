@@ -10,7 +10,7 @@ builder.Services.AddOrderFlow(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddApiErrors();
-builder.Services.AddOpenApi();
+builder.Services.AddApiDocumentation();
 builder.Services.AddApiSecurity();
 builder.Services.AddApiRateLimiting();
 builder.Services.AddApiObservability(builder.Configuration);
@@ -22,7 +22,20 @@ app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi().AllowAnonymous();
+    app.MapOpenApi().WithDocumentPerVersion().AllowAnonymous();
+    app.UseSwaggerUI(options =>
+    {
+        foreach (var description in app.DescribeApiVersions())
+        {
+            options.SwaggerEndpoint($"/openapi/{description.GroupName}.json", description.GroupName);
+        }
+
+        options.DocumentTitle = "OrderFlow API";
+    });
+}
+else
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();

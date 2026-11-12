@@ -2,17 +2,17 @@
 GET {{host}}/nada
   
 ### 405 → link de tools.ietf.org
-POST {{host}}/weatherforecast
+POST {{host}}/api/v1/weatherforecast
 
 ### 401 sin token → #unauthorized
-GET {{host}}/weatherforecast
+GET {{host}}/api/v1/weatherforecast
 
 ### 200 con token
-GET {{host}}/weatherforecast
+GET {{host}}/api/v1/weatherforecast
 Authorization: Bearer {{token}}
 
 ### 200 con token
-GET {{host}}/weatherforecast
+GET {{host}}/api/v1/weatherforecast
 Authorization: Bearer {{tokenTenantUser}}
 
 ### Health: liveness (anónimo) → 200 Healthy
