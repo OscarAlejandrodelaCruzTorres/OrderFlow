@@ -15,4 +15,13 @@ Authorization: Bearer {{token}}
 GET {{host}}/weatherforecast
 Authorization: Bearer {{tokenTenantUser}}
 
+### Health: liveness (anónimo) → 200 Healthy
+GET {{host}}/health/live
+
+### Health: readiness (anónimo) → 200 Healthy (en F1 dependerá de Azure SQL)
+GET {{host}}/health/ready
+
+### Health: startup (anónimo) → 200 Healthy
+GET {{host}}/health/startup
+
 ###

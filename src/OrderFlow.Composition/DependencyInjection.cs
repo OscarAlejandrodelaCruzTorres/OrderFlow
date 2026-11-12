@@ -14,6 +14,8 @@ public static class DependencyInjection
     {
         return services
             .AddApplication()
-            .AddInfrastructure(configuration);
+            .AddInfrastructure(configuration)
+            .AddSingleton(TimeProvider.System);
+
     }
 }

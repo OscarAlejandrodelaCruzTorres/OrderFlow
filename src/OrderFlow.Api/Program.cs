@@ -1,5 +1,8 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+
 using OrderFlow.Api.Extensions;
 using OrderFlow.Api.RateLimiting;
+using OrderFlow.Application.Health;
 using OrderFlow.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +13,8 @@ builder.Services.AddApiErrors();
 builder.Services.AddOpenApi();
 builder.Services.AddApiSecurity();
 builder.Services.AddApiRateLimiting();
+builder.Services.AddApiObservability(builder.Configuration);
+builder.Services.AddApiRequestTimeouts(builder.Configuration);
 
 var app = builder.Build();
 app.UseExceptionHandler();
@@ -26,6 +31,20 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseRateLimiter();
+app.UseRequestTimeouts();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+    .AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains(HealthTags.Ready)
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/startup", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains(HealthTags.Startup)
+}).AllowAnonymous();
 
 app.MapControllers().RequireRateLimiting(RateLimitPolicies.PerUser);
 
