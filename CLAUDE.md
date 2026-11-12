@@ -1,7 +1,8 @@
 # OrderFlow — contexto para agentes
 
 API multi-tenant de órdenes, inventario y clientes en .NET 10 + SQL Server, construida fase por fase como proyecto de
-arquitectura y portafolio. **Antes de cualquier tarea lee `docs/ARQUITECTURA.md`** (decisiones ADR 1–14 y plan F0–F12).
+arquitectura y portafolio. **Antes de cualquier tarea lee `docs/ARQUITECTURA.md`** (plan F0–F12) y el índice de
+`docs/decisiones.md` (ADR 001–016).
 
 ## Modo de trabajo
 - Alejandro escribe el código para aprenderlo. El agente diseña, explica, da tareas con pistas y revisa.
@@ -12,15 +13,20 @@ arquitectura y portafolio. **Antes de cualquier tarea lee `docs/ARQUITECTURA.md`
 - Sin commit ni push: los hace Alejandro.
 
 ## Estructura del repo
-    src/                     OrderFlow.Domain · OrderFlow.Application · OrderFlow.Infrastructure · OrderFlow.Api
+    src/                     OrderFlow.Domain · OrderFlow.Application · OrderFlow.Infrastructure ·
+                             OrderFlow.Composition (composition root: une Application + Infrastructure) · OrderFlow.Api
     tests/                   OrderFlow.UnitTests · OrderFlow.IntegrationTests · OrderFlow.ArchitectureTests
     docs/                    ARQUITECTURA · decisiones · guia-api · casos-de-uso · errores · entrevista · azure
-    reference/Shop/          proyecto de referencia de calidad (solo lectura; no copiar su EnsureCreated)
+    reference/Shop/          proyecto de referencia de calidad (solo lectura; no copiar su EnsureCreated).
+                             **Solo local:** está en .gitignore y se purgó del historial; nunca se publica ni se cita
+                             su código en issues, PRs o README.
 
 ## Comandos (se completan conforme existan)
     dotnet build OrderFlow.slnx
     dotnet test OrderFlow.slnx
-    dotnet run --project src/OrderFlow.Api                                    # solo Alejandro
+    dotnet run --project src/OrderFlow.Api --launch-profile https             # solo Alejandro
+    dotnet run --project src/OrderFlow.Api --launch-profile https-telemetry   # exporta OTLP a localhost:4317
+    docker run --rm -d --name aspire-dashboard -p 18888:18888 -p 4317:18889 -e DASHBOARD__FRONTEND__AUTHMODE=Unsecured mcr.microsoft.com/dotnet/aspire-dashboard
     dotnet ef migrations add <Nombre> -p src/OrderFlow.Infrastructure -s src/OrderFlow.Api -c <Contexto> -o <carpeta>
     dotnet ef database update -p src/OrderFlow.Infrastructure -s src/OrderFlow.Api -c <Contexto>
 
@@ -49,6 +55,42 @@ arquitectura y portafolio. **Antes de cualquier tarea lee `docs/ARQUITECTURA.md`
 - Endpoints conforme a `docs/guia-api.md`. Reglas de negocio solo si están en `docs/casos-de-uso.md`; si falta una,
   se pregunta.
 - Comentarios que expliquen el **porqué** de cada decisión no obvia, al estilo de `reference/Shop`.
+
+## Convenciones del host (aprendidas en F0; aplican a todo código nuevo)
+- **Servicios del host** en `src/OrderFlow.Api/Extensions/`, un `AddApiXxx()` por tema (`AddApiErrors`, `AddApiSecurity`,
+  `AddApiRateLimiting`, `AddApiObservability`, `AddApiRequestTimeouts`). El **orden del pipeline** (`app.UseXxx`) se
+  queda visible en `Program.cs`, con un comentario del porqué de cada posición.
+- **Nombres como constantes, nunca strings sueltos:** `Authorization/Policies`, `Authorization/Roles`,
+  `RateLimiting/RateLimitPolicies`, `Application/Health/HealthTags` (en Application porque Api e Infrastructure lo
+  comparten). Los valores de `Roles` son **literales** (`"PlatformAdmin"`), nunca `nameof`: son un contrato con el
+  proveedor de identidad y un rename no debe cambiarlos.
+- **Autorización por políticas:** los endpoints usan `[Authorize(Policy = Policies.X)]`, nunca `[Authorize(Roles = ...)]`.
+  Los roles no tienen jerarquía. Los controladores de admin (`/api/admin/...`, `[ApiVersionNeutral]`) llevan
+  `Policies.PlatformAdmin` a nivel de clase.
+- **Errores:** ningún middleware ni `OnRejected` escribe body; pone el status y `UseStatusCodePages` genera el
+  ProblemDetails. `CustomizeProblemDetails` solo reemplaza el `type` si es null o de `tools.ietf.org`; el que pone
+  nuestro código se respeta. Catálogo en `Api/Errors/ProblemTypes.cs` (la base del URI vive en código).
+- **Health checks:** `/health/live` sin checks (nunca la base); los checks de dependencias se registran en su capa con
+  `HealthTags.Ready`. Los tres endpoints son anónimos y sin rate limiting.
+- **Timeouts cooperativos:** el `CancellationToken` de la acción viaja hasta EF Core / `HttpClient`; sin él, el timeout
+  no corta nada. Lo que tarda de verdad responde 202 (ADR 009); no se sube el timeout.
+- **Hora:** siempre `TimeProvider` (registrado en Composition), nunca `DateTime.Now`/`UtcNow`.
+- **Logging:** `[LoggerMessage]` en clases `partial` (CA1848/CA1873); plantillas con `{Nombre}`, nunca interpolación.
+- **`.http`:** `{{host}}` sale de `http-client.env.json` (se versiona); los tokens de `dotnet user-jwts` en
+  `http-client.env.json.user` (ignorado por `*.user`). Nunca un token en el `.http`.
+- **Telemetría local:** el cliente `.http` de Visual Studio envía `traceparent` con bandera `00` y el muestreo
+  `ParentBased` no graba esas trazas; para ver trazas en el dashboard usar navegador o `curl.exe`. Las métricas sí llegan.
+- **Versiones:** .NET 10 fijado por `global.json` (ADR 016). Antes de subir una versión mayor de un paquete, verificar
+  que todo el árbol sea compatible (NU1107); versiones solo en `Directory.Packages.props`.
+- **Commits** (los hace Alejandro): `tipo(Fx): descripción` con `feat`, `fix`, `refactor`, `style`, `chore`, `build`,
+  `docs`, `test`.
+
+## IA (F11)
+No se implementa nada de IA antes de F11 (una versión mínima podría adelantarse después de F5 solo si una vacante lo
+pide). Las ideas candidatas y las **reglas obligatorias** están en `docs/ARQUITECTURA.md`, sección F11: el modelo solo
+usa herramientas sobre los services (nunca SQL), aislamiento por tenant, el dominio decide, humano en el ciclo para
+escrituras, rate limiting y métricas de tokens, proveedor intercambiable con `Microsoft.Extensions.AI`. El alcance se
+decide con un ADR al llegar a la fase.
 
 ## Agentes disponibles (en `~/.claude/agents`)
 Útiles aquí: `api-reviewer`, `db-reviewer` (contra las bases `OrderFlowCF_*` y para comparar con las de referencia),

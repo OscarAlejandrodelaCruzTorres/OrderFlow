@@ -279,6 +279,27 @@ las dedicadas llegan en F4.
 elegido funciona de punta a punta; token sin tenant o con tenant inactivo → 403; un usuario sin el permiso requerido →
 403 aunque el recurso sea de su tenant.
 
+**Notas para arrancar F3** (anotadas en F0; insumo para el ADR 13, nada está decidido):
+1. **Spike de 1–1.5 h, rama `lab/keycloak`, no se mezcla a `main`:** Keycloak en Docker
+   (`quay.io/keycloak/keycloak start-dev`), realm `orderflow`, rol `PlatformAdmin`, client `orderflow-cli` con
+   *Direct access grants* (solo para el laboratorio), mappers **Audience** (`orderflow-api`) y **User Realm Role** como
+   claim plano `roles`; token con `curl.exe` (password grant) y la API configurada **solo por configuración** en un perfil
+   `https-keycloak` (`Authority`, `ValidIssuer`, `ValidAudiences`, `RequireHttpsMetadata=false` solo en local).
+   Objetivo: ver un token RS256 validado con la llave pública descargada del proveedor (JWKS). Fallos típicos: audience,
+   issuer o roles anidados en `realm_access`.
+2. **Escenario recomendado para el ADR 13: Microsoft Entra External ID**, un solo tenant externo:
+   - App roles de la API: `PlatformAdmin`, `TenantAdmin`, `TenantUser` (claim `roles`).
+   - Claim `tenant` agregado al emitir el token por una **extensión de autenticación personalizada** que consulta el
+     catálogo (Azure Function con Managed Identity en F12); el tenant viaja firmado en el token.
+   - Nadie se registra solo: el `TenantAdmin` invita usuarios (`POST /api/v1/users/invitations` vía Microsoft Graph, F4).
+   - SSO federado opcional para clientes que lo pidan; MFA con la app Authenticator, **nunca SMS** (se cobra).
+   - Angular con MSAL (Authorization Code + PKCE) en A1. Costo esperado: $0 dentro del nivel gratuito (revisar precios).
+   - **Alternativa a registrar:** Keycloak con *Organizations* (tenants nativos), común fuera del ecosistema Microsoft;
+     en Azure requiere hospedaje y PostgreSQL de pago.
+3. **Desarrollo y pruebas sin el proveedor:** `dotnet user-jwts create --role TenantUser --claim tenant=acme` (y otro con
+   `tenant=globex`) para probar aislamiento en local; las pruebas de integración usan tokens firmados localmente y nunca
+   llaman al proveedor real.
+
 #### F4 — Tenants dedicados y ciclo de vida por endpoint
 **Enrutamiento a bases dedicadas:** la cadena de `TenantDbContext` se elige según el modelo del tenant en el catálogo;
 las pruebas de aislamiento de F3 se repiten con un tenant dedicado.
@@ -336,6 +357,34 @@ migración de tenants.
 #### F11 — IA (paso 11 acordado)
 `POST /api/v1/assistant/ask` con Microsoft.Extensions.AI y herramientas tenant-aware sobre los servicios de la
 aplicación, nunca SQL generado por el modelo.
+
+**Candidatas para ampliar F11** (anotadas en F0; ninguna está aceptada: al llegar a F11 se elige alcance y se registra
+en un ADR con costo y alternativas). Recomendación inicial: el asistente (1) más la 2 o la 3.
+
+| # | Idea | Qué hace | Tecnología |
+| --- | --- | --- | --- |
+| 1 | Asistente con herramientas (núcleo de F11) | responde preguntas del negocio llamando a los servicios de Application | `IChatClient`, function calling |
+| 2 | Búsqueda semántica de productos | encuentra productos por significado, no por palabras exactas | embeddings + búsqueda vectorial en Azure SQL |
+| 3 | Órdenes desde documentos | un PDF o correo de orden de compra se convierte en una orden **propuesta**; el usuario confirma | extracción con modelo + validación del dominio |
+| 4 | Servidor MCP de OrderFlow | agentes externos (Claude, etc.) usan OrderFlow como herramienta, con las mismas reglas | SDK de MCP para C# |
+| 5 | Reportes en lenguaje natural | resumen periódico para el TenantAdmin | Azure Function programada (F12) + modelo |
+| 6 | Sugerencias de reabastecimiento | predice agotamiento de stock; el LLM solo lo explica | ML.NET sobre el historial de inventario |
+| 7 | Clasificación al dar de alta | sugiere categoría y mejora la descripción de un producto | llamada con salida estructurada (JSON) |
+| 8 | Detección de anomalías | marca órdenes fuera de lo normal | reglas/estadística o ML.NET |
+
+**Reglas para cualquier funcionalidad de IA** (no negociables):
+- **Tenant:** el modelo solo ve datos del tenant del token; las herramientas pasan por RLS y el filtro global.
+- **Sin SQL ni acciones libres:** el modelo solo invoca herramientas con permisos mínimos, que reutilizan los services
+  y sus políticas de autorización; defensa explícita contra *prompt injection*.
+- **El dominio decide (ADR 12):** la IA propone; las entidades validan igual que siempre.
+- **Humano en el ciclo** para toda escritura: la IA sugiere, el usuario confirma, con `Idempotency-Key`.
+- **Costo y abuso:** rate limiting por tenant para los endpoints de IA; tokens consumidos como métrica de OpenTelemetry.
+- **Lo lento es asíncrono:** procesar documentos grandes responde 202 (ADR 009); `CancellationToken` y timeout en cada
+  llamada al modelo.
+- **Proveedor intercambiable:** `Microsoft.Extensions.AI` (`IChatClient`, `IEmbeddingGenerator`); el proveedor
+  (Azure OpenAI, OpenAI, Anthropic) es configuración, con Managed Identity en Azure (F12).
+- **Evaluaciones:** pruebas de calidad de respuestas (`Microsoft.Extensions.AI.Evaluation`) que corren al cambiar de
+  modelo o de prompt.
 
 #### F12 — Azure (paso 12 acordado, ADR 14)
 1. **Fundamentos:** el resource group, el presupuesto y el servidor de Azure SQL ya existen desde F1; los Bicep de
