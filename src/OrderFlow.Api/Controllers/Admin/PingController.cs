@@ -19,6 +19,6 @@ public sealed class PingController : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public IActionResult Get() => NoContent();
+    public IActionResult Get(CancellationToken cancellationToken = default) => NoContent();
 
 }
