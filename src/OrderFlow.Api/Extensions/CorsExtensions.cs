@@ -13,7 +13,7 @@ public static class CorsExtensions
         services.AddOptions<CorsSettings>()
             .BindConfiguration(CorsSettings.SectionName, binder => binder.ErrorOnUnknownConfiguration = true)
             .Validate(settings => settings.AllowedOrigins.All(IsValidOrigin),
-                "Every Cors:AllowedOrigins entry must be an absolute URL, e.g. http://localhost:4200.")
+                "Every Cors:AllowedOrigins entry must be an origin: http(s)://host[:port], without path or trailing slash.")
             .ValidateOnStart();
 
         services.AddCors();
