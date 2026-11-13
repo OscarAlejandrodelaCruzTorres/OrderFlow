@@ -1,35 +1,87 @@
-### 404 → #not-found
-GET {{host}}/nada
-  
-### Health: liveness (anónimo) → 200 Healthy
+# Variables: {{host}} sale de http-client.env.json; los tokens, de http-client.env.json.user (no se sube a git).
+# Elige el entorno "dev" arriba a la derecha. Para crear los tokens, desde src/OrderFlow.Api:
+#   dotnet user-jwts create --role PlatformAdmin --output token   → tokenPlatformAdmin
+#   dotnet user-jwts create --role TenantUser --output token      → tokenTenantUser
+# Todo error 4xx debe traer un ProblemDetails con "type" del catálogo (docs/errores.md) y "traceId".
+
+### ─── Health: anónimos, sin rate limiting ───────────────────────────────
+
+### Liveness → 200 Healthy (no corre checks)
 GET {{host}}/health/live
 
-### Health: readiness (anónimo) → 200 Healthy (en F1 dependerá de Azure SQL)
+### Readiness → 200 Healthy (desde F1 dependerá de Azure SQL)
 GET {{host}}/health/ready
 
-### Health: startup (anónimo) → 200 Healthy
+### Startup → 200 Healthy
 GET {{host}}/health/startup
 
-### api/v1/me sin token → 401
+### ─── Identidad: /me ─────────────────────────────────────────────────────
+
+### Sin token → 401, type #unauthorized, traceId
 GET {{host}}/api/v1/me
 
-### api/v1/me con token → 200 con tu nombre y roles
+### Con token → 200 con sub, name y roles; header api-supported-versions: 1.0
 GET {{host}}/api/v1/me
 Authorization: Bearer {{tokenPlatformAdmin}}
 
-### api/admin/ping sin token → 401
+### ─── Admin: política PlatformAdmin, versión neutral ────────────────────
+
+### Sin token → 401, type #unauthorized
 GET {{host}}/api/admin/ping
 
-### api/admin/ping con tokenTenantUser → 403 #forbidden
+### TenantUser → 403, type #forbidden: autenticado, pero sin el rol
 GET {{host}}/api/admin/ping
 Authorization: Bearer {{tokenTenantUser}}
 
-### api/admin/ping con tokenPlatformAdmin → 204
+### PlatformAdmin → 204 sin body
 GET {{host}}/api/admin/ping
 Authorization: Bearer {{tokenPlatformAdmin}}
 
-### api/v1/admin con PlatformAdmin → 404
+### Bajo /api/v1 → 404, type #not-found: el ping es neutral, no tiene versión
 GET {{host}}/api/v1/admin/ping
 Authorization: Bearer {{tokenPlatformAdmin}}
 
-###
+### ─── Versionado ─────────────────────────────────────────────────────────
+
+### Versión inexistente → ¿qué responde? Observa status, type y traceId (lo discutimos)
+GET {{host}}/api/v2/me
+Authorization: Bearer {{tokenPlatformAdmin}}
+
+### ─── CORS: solo navegadores; curl y este archivo no lo aplican ──────────
+
+### Preflight desde un origen permitido → 204 con Access-Control-Allow-Origin/Methods/Headers, sin token
+OPTIONS {{host}}/api/v1/me
+Origin: http://localhost:4200
+Access-Control-Request-Method: GET
+Access-Control-Request-Headers: authorization
+
+### Preflight desde un origen NO permitido → sin headers Access-Control-*: el navegador bloquearía la llamada
+OPTIONS {{host}}/api/v1/me
+Origin: http://evil.example
+Access-Control-Request-Method: GET
+Access-Control-Request-Headers: authorization
+
+### ─── Rate limiting: 10 por minuto en Development ───────────────────────
+
+### Ráfaga: envíala 11 veces seguidas → la 11a da 429, type #too-many-requests, header Retry-After
+# Desde PowerShell, de un jalón (desde C:\OrderFlow):
+#   $t = (Get-Content src/OrderFlow.Api/http-client.env.json.user | ConvertFrom-Json).dev.tokenPlatformAdmin
+#   1..11 | % { curl.exe -s -o NUL -w "%{http_code}`n" -H "Authorization: Bearer $t" https://localhost:7007/api/v1/me }
+GET {{host}}/api/v1/me
+Authorization: Bearer {{tokenPlatformAdmin}}
+
+### ─── Errores del framework ─────────────────────────────────────────────
+
+### Ruta inexistente con token → 404, type #not-found (sin token sería 401: la fallback va primero)
+GET {{host}}/nada
+Authorization: Bearer {{tokenPlatformAdmin}}
+
+### Método no permitido → 405, type con el link del RFC (no está en el catálogo)
+POST {{host}}/api/v1/me
+Authorization: Bearer {{tokenPlatformAdmin}}
+
+### ─── Contrato ───────────────────────────────────────────────────────────
+
+### Documento OpenAPI v1 (anónimo, solo en Development)
+GET {{host}}/openapi/v1.json
+
