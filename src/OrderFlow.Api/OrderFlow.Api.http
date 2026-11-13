@@ -10,19 +10,26 @@ GET {{host}}/health/ready
 ### Health: startup (anónimo) → 200 Healthy
 GET {{host}}/health/startup
 
-### /me sin token → 401
-GET {{host}}/api/v1/test
+### api/v1/me sin token → 401
+GET {{host}}/api/v1/me
 
-### /me con token → 200 con tu nombre y roles
-GET {{host}}/api/v1/test
-Authorization: Bearer {{token}}
+### api/v1/me con token → 200 con tu nombre y roles
+GET {{host}}/api/v1/me
+Authorization: Bearer {{tokenPlatformAdmin}}
 
-### /me/admin con TenantUser → 403 #forbidden
-GET {{host}}/api/v1/test/admin
+### api/admin/ping sin token → 401
+GET {{host}}/api/admin/ping
+
+### api/admin/ping con tokenTenantUser → 403 #forbidden
+GET {{host}}/api/admin/ping
 Authorization: Bearer {{tokenTenantUser}}
 
-### /me/admin con PlatformAdmin → 200
-GET {{host}}/api/v1/test/admin
-Authorization: Bearer {{token}}
+### api/admin/ping con tokenPlatformAdmin → 204
+GET {{host}}/api/admin/ping
+Authorization: Bearer {{tokenPlatformAdmin}}
+
+### api/v1/admin con PlatformAdmin → 404
+GET {{host}}/api/v1/admin/ping
+Authorization: Bearer {{tokenPlatformAdmin}}
 
 ###
