@@ -14,7 +14,8 @@ builder.Services.AddApiDocumentation();
 builder.Services.AddApiSecurity();
 builder.Services.AddApiRateLimiting();
 builder.Services.AddApiObservability(builder.Configuration);
-builder.Services.AddApiRequestTimeouts(builder.Configuration);
+builder.Services.AddApiRequestTimeouts();
+builder.Services.AddApiCors();
 
 var app = builder.Build();
 app.UseExceptionHandler();
@@ -39,6 +40,7 @@ else
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
 app.UseAuthentication();
 
 app.UseAuthorization();
