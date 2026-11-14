@@ -1,7 +1,5 @@
 ﻿using System.Security.Claims;
 
-using Asp.Versioning;
-
 using Microsoft.AspNetCore.Mvc;
 
 using OrderFlow.Application.Contracts.Users;
@@ -9,7 +7,6 @@ using OrderFlow.Application.Contracts.Users;
 namespace OrderFlow.Api.Controllers;
 
 [ApiController]
-[ApiVersion(1.0)]
 [Route("api/v{version:apiVersion}/me")]
 [Produces("application/json")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]

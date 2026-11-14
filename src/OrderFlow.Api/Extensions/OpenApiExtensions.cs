@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 
 using OrderFlow.Api.OpenApi;
+using OrderFlow.Api.Versioning;
 
 namespace OrderFlow.Api.Extensions;
 
@@ -14,7 +15,7 @@ public static class OpenApiExtensions
             options.ApiVersionReader = new UrlSegmentApiVersionReader();
             options.ReportApiVersions = true;
         })
-        .AddMvc()
+        .AddMvc(options => options.Conventions.Add(new GlobalApiVersionConvention()))
         .AddApiExplorer(options =>
         {
             options.GroupNameFormat = "'v'VVV";
