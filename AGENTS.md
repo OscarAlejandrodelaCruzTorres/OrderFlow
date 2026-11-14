@@ -82,6 +82,12 @@ arquitectura y portafolio. **Antes de cualquier tarea lee `docs/ARQUITECTURA.md`
   `ParentBased` no graba esas trazas; para ver trazas en el dashboard usar navegador o `curl.exe`. Las métricas sí llegan.
 - **Versiones:** .NET 10 fijado por `global.json` (ADR 016). Antes de subir una versión mayor de un paquete, verificar
   que todo el árbol sea compatible (NU1107); versiones solo en `Directory.Packages.props`.
+- **Paquetes del framework:** los `Microsoft.Extensions.*` y `Microsoft.AspNetCore.*` van en la **misma versión mayor
+  que el `TargetFramework`** (hoy 10.0.x) y se actualizan juntos, nunca sueltos desde el administrador de NuGet. Un
+  paquete de versión mayor que el framework compartido gana en la resolución del host (gana la versión de assembly
+  más alta) y reemplaza al del framework en tiempo de ejecución: compila, pero puede fallar en producción. Alternativa
+  conocida: `<FrameworkReference Include="Microsoft.AspNetCore.App" />`, que usa siempre la versión del framework a
+  cambio de ligar la capa a ASP.NET Core. Pasó en F0: los `Abstractions` quedaron en 11.0.0 tras el intento de .NET 11.
 - **Commits** (los hace Alejandro): `tipo(Fx): descripción` con `feat`, `fix`, `refactor`, `style`, `chore`, `build`,
   `docs`, `test`.
 

@@ -1,14 +1,18 @@
+using System.Text.Json.Serialization;
+
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 using OrderFlow.Api.Extensions;
+using OrderFlow.Api.Middleware;
 using OrderFlow.Api.RateLimiting;
 using OrderFlow.Application.Health;
 using OrderFlow.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
-
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 // One call composes the layers below: this project never names a repository, a DbContext or a database
 // provider. The rest is host concerns, one extension per topic in Extensions/.
 builder.Services
@@ -23,7 +27,11 @@ builder.Services
 
 var app = builder.Build();
 
-// Outermost, so it covers every middleware registered below and turns any exception into ProblemDetails.
+// Outermost, so it logs the final status of every request, including the responses produced by the
+// exception handler and the 401/403/429 rejections.
+app.UseMiddleware<RequestLoggingMiddleware>();
+
+// Turns any exception from the middleware below into ProblemDetails.
 app.UseExceptionHandler();
 
 // Gives a ProblemDetails body to errors that are not exceptions (401, 403, 404, 405, 429).

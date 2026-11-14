@@ -71,9 +71,17 @@ I kept .NET 10 instead of upgrading to .NET 11 and documented why in ADR 016.
 -
 
 ### Live coding
-- Task:
-- Time limit / actual time:
+- Task: error catalog (`ProblemTypes`), `GlobalExceptionHandler`, and framework errors (404, 405, 401, 429) as
+  ProblemDetails with `UseStatusCodePages` + `CustomizeProblemDetails` (task 3).
+- Time limit / actual time: target 60 min / actual: **~3–4 h wall-clock on Nov 8, 2026**, estimated from the commit
+  times: steps 1–2 inside the 12:47–15:52 block (shared with task 2 and the user-jwts setup), step 3 and its cleanup
+  15:52–17:50. Includes learning time (analyzers, ProblemDetails internals), not just typing.
 - Notes:
+  - Logger calls failed the build (CA1848/CA1873): learned `[LoggerMessage]` in a `partial` class.
+  - First version of the status map used `_ => Internal`, which labeled a 405 as a server error; a manual test of a
+    non-catalog status caught it. In an interview: write `_ => null` from the start and keep the framework's RFC link.
+  - First version overwrote every `type`, including ours; fixed by only replacing null or `tools.ietf.org` types.
+  - Next time: say the edge cases out loud before coding (non-catalog status, types set by our own code).
 
 ---
 

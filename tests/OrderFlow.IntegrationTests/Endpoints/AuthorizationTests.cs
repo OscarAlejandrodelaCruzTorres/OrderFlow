@@ -28,7 +28,7 @@ public sealed class AuthorizationTests(OrderFlowApiFactory factory) : IClassFixt
     [Fact]
     public async Task MeWithTokenReturnsTheCallerClaims()
     {
-        using var client = factory.CreateClient(TestTokens.Create("user-123", "Laura Perez", "TenantUser"));
+        using var client = factory.CreateClientFor(TestTokens.Create("user-123", "Laura Perez", "TenantUser"));
 
         var response = await client.GetAsync(MeUrl, TestContext.Current.CancellationToken);
 
@@ -53,7 +53,7 @@ public sealed class AuthorizationTests(OrderFlowApiFactory factory) : IClassFixt
     [Fact]
     public async Task PingAsTenantUserReturns403()
     {
-        using var client = factory.CreateClient(TestTokens.Create("user-123", "Laura Perez", "TenantUser"));
+        using var client = factory.CreateClientFor(TestTokens.Create("user-123", "Laura Perez", "TenantUser"));
 
         var response = await client.GetAsync(PingUrl, TestContext.Current.CancellationToken);
 
@@ -63,10 +63,24 @@ public sealed class AuthorizationTests(OrderFlowApiFactory factory) : IClassFixt
     [Fact]
     public async Task PingAsPlatformAdminReturns204()
     {
-        using var client = factory.CreateClient(TestTokens.Create("user-123", "Laura Perez", "PlatformAdmin"));
+        using var client = factory.CreateClientFor(TestTokens.Create("user-123", "Laura Perez", "PlatformAdmin"));
 
         var response = await client.GetAsync(PingUrl, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task VersionedResponseReportsSupportedVersions()
+    {
+        using var client = factory.CreateClientFor(TestTokens.Create("user-123", "Laura Perez", "TenantUser"));
+
+        var response = await client.GetAsync(MeUrl, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // ReportApiVersions plus the global convention; Contains because a v2 would make it "1.0, 2.0".
+        Assert.True(response.Headers.TryGetValues("api-supported-versions", out var versions));
+        Assert.Contains("1.0", string.Join(",", versions));
     }
 }

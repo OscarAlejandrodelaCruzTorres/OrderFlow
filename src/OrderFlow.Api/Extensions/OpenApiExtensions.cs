@@ -1,4 +1,6 @@
-﻿using Asp.Versioning;
+﻿using System.Text.Json.Serialization;
+
+using Asp.Versioning;
 
 using OrderFlow.Api.OpenApi;
 using OrderFlow.Api.Versioning;
@@ -13,6 +15,10 @@ public static class OpenApiExtensions
 {
     public static IServiceCollection AddApiDocumentation(this IServiceCollection services)
     {
+        // The OpenAPI generator reads HttpJsonOptions, not MVC's: without this the document would describe enums as
+        // numbers while the API sends names.
+        services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
         services.AddApiVersioning(options =>
             {
                 // The version is read from the route only; reading several places costs every request (AV0015).

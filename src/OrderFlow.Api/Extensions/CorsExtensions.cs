@@ -25,14 +25,15 @@ public static class CorsExtensions
         services.AddOptions<CorsOptions>()
             .Configure<IOptions<CorsSettings>>((options, settings) =>
             {
-                // Write methods and their headers (Content-Type, If-Match, Idempotency-Key) are allowed ahead of
-                // F6, when the write endpoints arrive. Tokens travel in the Authorization header, so credentials
-                // stay disabled. Retry-After and api-supported-versions are exposed so the client can read them.
+                // Only what exists today: GET and the Authorization header. Write methods and their headers
+                // (Content-Type, If-Match, Idempotency-Key) are added in F6 with the endpoints that need them.
+                // Tokens travel in the Authorization header, so credentials stay disabled. Retry-After and
+                // api-supported-versions are exposed so the client can read them.
                 options.AddDefaultPolicy(policy =>
                 {
                     policy.WithOrigins(settings.Value.AllowedOrigins)
-                        .WithMethods(HttpMethods.Get, HttpMethods.Post, HttpMethods.Put, HttpMethods.Delete, HttpMethods.Patch)
-                        .WithHeaders(HeaderNames.Authorization, HeaderNames.ContentType, HeaderNames.IfMatch, "Idempotency-Key")
+                        .WithMethods(HttpMethods.Get)
+                        .WithHeaders(HeaderNames.Authorization)
                         .WithExposedHeaders(HeaderNames.RetryAfter, "api-supported-versions");
                 });
             });

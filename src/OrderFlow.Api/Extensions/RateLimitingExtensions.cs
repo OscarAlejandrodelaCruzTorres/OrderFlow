@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 
 using Microsoft.Extensions.Options;
@@ -31,7 +32,7 @@ public static class RateLimitingExtensions
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
                 {
                     context.HttpContext.Response.Headers.RetryAfter =
-                        ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+                        ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
                 }
 
                 return ValueTask.CompletedTask;
@@ -44,7 +45,9 @@ public static class RateLimitingExtensions
                 var settings = context.RequestServices.GetRequiredService<IOptions<RateLimitSettings>>().Value;
 
                 return RateLimitPartition.GetFixedWindowLimiter(
-                    context.User.Identity?.Name ?? "anonymous",
+                    // The subject (sub), not the name: names repeat and change, sub is unique and stable. In F3 it
+                    // is combined with the tenant, so the same user id in two tenants does not share a quota.
+                    context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous",
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = settings.PermitLimit,

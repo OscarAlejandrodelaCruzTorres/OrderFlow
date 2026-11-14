@@ -1,5 +1,4 @@
-﻿using System.Net.Http.Headers;
-
+﻿
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -38,18 +37,5 @@ public sealed class OrderFlowApiFactory : WebApplicationFactory<Program>
                 options.TokenValidationParameters.ValidAudience = TestTokens.Audience;
                 options.TokenValidationParameters.IssuerSigningKey = TestTokens.Key;
             }));
-    }
-
-    // One place to build a client as a given caller; without a token the client is anonymous.
-    public HttpClient CreateClient(string? token)
-    {
-        var client = CreateClient();
-
-        if (token is not null)
-        {
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-
-        return client;
     }
 }

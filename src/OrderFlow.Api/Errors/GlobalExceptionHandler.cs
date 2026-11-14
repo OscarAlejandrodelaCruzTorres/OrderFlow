@@ -18,8 +18,10 @@ public sealed partial class GlobalExceptionHandler(IProblemDetailsService proble
         string title;
         string type;
 
-        // The request's token was cancelled: the client left or the request timeout fired. It is not a bug,
-        // so it is logged as a warning and answered with 504 instead of 500.
+        // A request the client walked away from never gets here: the exception handler middleware skips every
+        // handler while RequestAborted is signalled, since nobody is left to read a response. A cancellation that
+        // does reach this point came from a server-side timeout or a linked token (an HttpClient timeout, for
+        // example), so it is a real fault: logged as a warning and answered with 504 instead of 500.
         if (exception is OperationCanceledException)
         {
             statusCode = StatusCodes.Status504GatewayTimeout;
