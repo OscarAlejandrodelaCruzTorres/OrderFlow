@@ -2,6 +2,10 @@
 
 namespace OrderFlow.Api.RateLimiting;
 
+/// <summary>
+/// Per-user rate limit (section "RateLimiting"), validated at startup so an invalid limit stops the app instead
+/// of throttling everyone or nobody. The defaults apply when the section is missing.
+/// </summary>
 public sealed class RateLimitSettings
 {
     public const string SectionName = "RateLimiting";

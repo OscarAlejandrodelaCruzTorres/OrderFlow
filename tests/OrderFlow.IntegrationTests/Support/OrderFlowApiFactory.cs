@@ -40,6 +40,7 @@ public sealed class OrderFlowApiFactory : WebApplicationFactory<Program>
             }));
     }
 
+    // One place to build a client as a given caller; without a token the client is anonymous.
     public HttpClient CreateClient(string? token)
     {
         var client = CreateClient();

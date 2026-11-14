@@ -3,6 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!-- F0 has no domain yet: an empty run (exit code 8, "zero tests ran") is expected until the first unit
+         test arrives in F2. Remove then, so an empty run is an error again. -->
     <TestingPlatformCommandLineArguments>--ignore-exit-code 8</TestingPlatformCommandLineArguments>
   </PropertyGroup>
 

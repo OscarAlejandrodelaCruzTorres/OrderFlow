@@ -5,5 +5,4 @@
     <ProjectReference Include="..\OrderFlow.Infrastructure\OrderFlow.Infrastructure.csproj" />
   </ItemGroup>
 
-
 </Project>

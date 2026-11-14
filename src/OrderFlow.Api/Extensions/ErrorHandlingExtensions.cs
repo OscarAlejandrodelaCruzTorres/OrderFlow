@@ -18,12 +18,15 @@ public static class ErrorHandlingExtensions
             {
                 var problemDetails = context.ProblemDetails;
 
+                // Only replace the framework's generic RFC links; a type set by our own code is kept.
+
                 if (problemDetails.Type is null || problemDetails.Type.StartsWith("https://tools.ietf.org/", StringComparison.Ordinal))
                 {
                     problemDetails.Type = ProblemTypes.GetProblemTypeForStatusCode(problemDetails.Status) ?? problemDetails.Type;
                 }
             };
         });
+
         return services;
     }
 }

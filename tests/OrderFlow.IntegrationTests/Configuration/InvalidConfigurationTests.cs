@@ -17,10 +17,13 @@ public sealed class InvalidConfigurationTests(OrderFlowApiFactory factory) : ICl
     [InlineData("RateLimiting:PerLimit", "3", "PerLimit")]
     public void InvalidSettingStopsTheHost(string key, string value, string expectedInMessage)
     {
+        // A copy of the shared factory with one bad setting added last, so it wins.
         using var invalidFactory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, config) =>
                 config.AddInMemoryCollection(new Dictionary<string, string?> { [key] = value })));
 
+        // The host starts on the first client. ThrowsAny because each validation throws its own type and it may
+        // arrive wrapped; the message check proves the host stopped for this setting and not another reason.
         var exception = Assert.ThrowsAny<Exception>(() => invalidFactory.CreateClient());
 
         Assert.Contains(expectedInMessage, exception.ToString(), StringComparison.Ordinal);

@@ -2,6 +2,10 @@
 
 namespace OrderFlow.Api.Timeouts;
 
+/// <summary>
+/// Default request timeout (section "RequestTimeout"), validated at startup. Capped at five minutes: anything
+/// longer belongs in a 202 Accepted operation (ADR 009), not in a longer timeout.
+/// </summary>
 public sealed class RequestTimeoutSettings
 {
     public const string SectionName = "RequestTimeout";

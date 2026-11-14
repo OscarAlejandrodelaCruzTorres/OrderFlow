@@ -3,7 +3,6 @@ using Microsoft.OpenApi;
 
 namespace OrderFlow.Api.OpenApi;
 
-
 /// <summary>
 /// Declares the JWT Bearer scheme in the OpenAPI document, which is what makes
 /// Swagger UI offer the Authorize button and send the token. It only describes

@@ -44,7 +44,9 @@ public sealed class AuthorizationTests(OrderFlowApiFactory factory) : IClassFixt
     public async Task PingWithoutTokenReturns401()
     {
         using var client = factory.CreateClient();
+
         var response = await client.GetAsync(PingUrl, TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
@@ -52,7 +54,9 @@ public sealed class AuthorizationTests(OrderFlowApiFactory factory) : IClassFixt
     public async Task PingAsTenantUserReturns403()
     {
         using var client = factory.CreateClient(TestTokens.Create("user-123", "Laura Perez", "TenantUser"));
+
         var response = await client.GetAsync(PingUrl, TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
@@ -60,7 +64,9 @@ public sealed class AuthorizationTests(OrderFlowApiFactory factory) : IClassFixt
     public async Task PingAsPlatformAdminReturns204()
     {
         using var client = factory.CreateClient(TestTokens.Create("user-123", "Laura Perez", "PlatformAdmin"));
+
         var response = await client.GetAsync(PingUrl, TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 }
