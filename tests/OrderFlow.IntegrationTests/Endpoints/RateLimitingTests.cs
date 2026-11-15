@@ -37,7 +37,7 @@ public sealed class RateLimitingTests(OrderFlowApiFactory factory) : IClassFixtu
         Assert.Equal("application/problem+json", second.Content.Headers.ContentType?.MediaType);
 
         var problem = await second.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        Assert.EndsWith("#too-many-requests", problem.GetProperty("type").GetString());
+        Assert.EndsWith("#tooli-many-requests", problem.GetProperty("type").GetString());
 
         // Rounded up in OnRejected: a truncated value could be zero and make the client retry at once.
         Assert.NotNull(second.Headers.RetryAfter?.Delta);

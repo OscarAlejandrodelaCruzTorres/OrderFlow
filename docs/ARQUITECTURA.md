@@ -86,7 +86,8 @@ Observaciones sobre Shop (no se copian tal cual):
    `OrderFlow.Application` (servicios, validadores, interfaces como `ITenantContext`, `IPermissionService`, y los
    Request/Response en su carpeta `Contracts/`) ·
    `OrderFlow.Infrastructure` (DbContexts, configuraciones, migraciones, repositorios, tenancy, aprovisionamiento) ·
-   `OrderFlow.Api` (host). Cada capa expone un `AddXxx()`; el host llama uno solo y tiene
+   `OrderFlow.Api` (host). Cada capa expone un `AddXxx()`; el host llama uno solo (`AddOrderFlow()`, del proyecto
+   `OrderFlow.Composition`, que une Application e Infrastructure; ver ADR-017 en `docs/decisiones.md`) y tiene
    `DisableTransitiveProjectReferences`. Pruebas: `OrderFlow.UnitTests`, `OrderFlow.IntegrationTests`,
    `OrderFlow.ArchitectureTests`. Configuración común en `Directory.Build.props` y versiones en `Directory.Packages.props`.
    *No hay proyecto `Contracts` separado:* solo se justificaría si otro cliente .NET compartiera los DTOs; el front usa

@@ -25,8 +25,9 @@ Estados: **Propuesto** · **Aceptado** · **Reemplazado** · **Descartado**.
 | 014 | Plataforma Azure | Aceptado | 2026-11-06 |
 | 015 | Base de datos en Azure SQL desde F1 (free tier, solo Entra, SKU explícito para dedicadas) | Aceptado | 2026-11-08 |
 | 016 | Mantener .NET 10 (LTS); no migrar a .NET 11 por ahora | Descartado (la migración) | 2026-11-10 |
+| 017 | Composition root en su propio proyecto (`OrderFlow.Composition`); ajusta el ADR 001 | Aceptado | 2026-11-14 |
 
-El texto de los ADR 001–015 está resumido en `docs/ARQUITECTURA.md`, sección 3; el ADR 016 está completo abajo. Al cerrar cada fase se completan aquí
+El texto de los ADR 001–015 está resumido en `docs/ARQUITECTURA.md`, sección 3; los ADR 016 y 017 están completos abajo. Al cerrar cada fase se completan aquí
 los que esa fase haya puesto a prueba, con lo aprendido.
 
 ---
@@ -53,6 +54,37 @@ Lo que se eligió, en una o dos frases claras.
 - Lo que cuesta o complica.
 - Lo que cambia en el código, las pruebas o la operación.
 ```
+
+## ADR-017 · Composition root en su propio proyecto
+Estado: Aceptado (ajusta el ADR 001) · Fecha: 2026-11-14 · Fase: F0
+
+### Contexto
+El ADR 001 pide dos cosas que chocan entre sí. Por un lado, el host compone con **una sola** llamada `AddXxx()` y no
+ve `Infrastructure`. Por otro, las interfaces (`ITenantContext`, repositorios) viven en `Application` y se
+implementan en `Infrastructure`, así que **Infrastructure → Application**. En consecuencia, `Application` no puede
+llamar a `AddInfrastructure()`, porque sería una referencia circular. En Shop esto funcionaba porque la dependencia
+iba al revés (Service → Repository). Sin un cambio, el host tendría que referenciar `Infrastructure` para componer, y
+la prueba de arquitectura del "Listo cuando" de F0 fallaría.
+
+### Decisión
+Un proyecto mínimo `OrderFlow.Composition` referencia `Application` e `Infrastructure` y expone `AddOrderFlow()`.
+`Api` referencia solo `Composition` y `Application`, con `DisableTransitiveProjectReferences`. Ningún tipo de `Api`
+puede nombrar un tipo de `Infrastructure`: el compilador lo impide y `ApiDoesNotDependOnInfrastructure` (ArchUnitNET)
+lo vigila.
+
+### Alternativas consideradas
+- El host referencia `Infrastructure` solo para componer (`AddApplication().AddInfrastructure()`). Es lo más común,
+  pero la frontera queda en convención: cualquier controlador podría usar un `DbContext` y solo lo detectaría una
+  regla por tipos, no el compilador.
+- Invertir la dependencia como en Shop (Application → Infrastructure). Obliga a sacar los puertos de `Application` y
+  contradice el ADR 001.
+
+### Consecuencias
+- La frontera se cumple en dos niveles: el compilador (no compila) y la prueba (no se agrega la referencia sin
+  que falle). Verificado al cerrar F0: agregar la referencia y usar `AddInfrastructure` desde `Api` hace fallar la prueba.
+- Cuesta un proyecto más, que no tiene lógica, solo registro. `TimeProvider` también se registra ahí.
+- Límite conocido: un `ProjectReference` que nadie usa no aparece en los metadatos y no dispara la prueba; la
+  primera vez que se use un tipo, sí.
 
 ## ADR-016 · Mantener .NET 10 (LTS); no migrar a .NET 11 por ahora
 Estado: Descartado (la migración) · Fecha: 2026-11-10 · Fase: F0
@@ -88,9 +120,36 @@ Se intentó y se revirtió. OrderFlow se queda en **.NET 10** hasta que todas la
 Una entrada corta al cerrar cada fase: qué se construyó, qué decisión se tomó o cambió, qué se aprendió.
 
 ### F0 — Esqueleto del host
-_(se condensa al cerrar la fase)_ Notas en curso:
-- Ajuste al ADR 001: proyecto `OrderFlow.Composition` como composition root; `Api` solo llama `AddOrderFlow()` y no ve
-  Infrastructure (`DisableTransitiveProjectReferences`).
+**Cierre: 2026-11-14 (`ok` de Alejandro).** Deuda anotada al cerrar: prueba `AnonymousEndpointsTests` (lista
+blanca de `[AllowAnonymous]`, propuesta como live coding), comprobar `dotnet run` + Swagger siguiendo solo el README, y
+documentar qué responde `/api/v2/me`. Construido: solución con 5 proyectos de `src` y 3 de pruebas; build
+común (`Directory.Build.props`, CPM, analizadores del SDK, advertencias como errores); host con todo lo transversal
+de Shop más versionado, options validadas al arrancar y tres sondas de salud. 18 pruebas (3 de arquitectura y 15 de
+integración). Verificado en un clon limpio: 0 advertencias y 18/18 pruebas.
+Decisiones y hallazgos:
+- **ADR-017:** el proyecto `OrderFlow.Composition` es el composition root; `Api` solo llama `AddOrderFlow()` y no
+  ve Infrastructure.
+- Paquetes nuevos, propuestos y aceptados: `Asp.Versioning.Mvc`/`.ApiExplorer`/`.OpenApi` (MIT) y
+  `TngTech.ArchUnitNET.xUnitV3` (Apache-2.0). Analizadores: solo los del SDK.
+- Los paquetes `Microsoft.Extensions.*` deben ir en la misma versión mayor que el framework: en 11.0.0 reemplazaban
+  en runtime a los de ASP.NET Core 10 (detectado en la revisión; regla en `CLAUDE.md`).
+- CORS solo con lo que existe hoy (GET + `Authorization`); los verbos de escritura se abren en F6.
+- Rate limiting particionado por `sub`, no por nombre; en F3 se combina con el tenant.
+
+### F0.5 — Casos de uso del producto
+**Cierre: 2026-11-14.** Sin código. `docs/casos-de-uso.md` aprobado: 16 decisiones de producto, matriz de actores y
+permisos, 11 casos de uso con criterios *Dado / Cuando / Entonces*, 29 reglas (RN-01 a RN-29) con su origen, y 6
+supuestos confirmados.
+Decisiones que más impactan el diseño:
+- **Núcleo común para B2B, B2C y negocio simple;** crédito y listas de precios fuera del Bloque 1 (P1b).
+- **Máquina de estados lineal** con pago antes de envío: enviar sin cobrar sería crédito (P3).
+- **Inventario descontado al crear la orden;** la cancelación devuelve con movimientos de reversa (ledger inmutable).
+- **Impuesto por línea con redondeo comercial** (`AwayFromZero`), como CFDI 4.0; precio y tasa congelados en la orden.
+- **Permiso por recurso según el estado:** cancelar una orden `Paid` solo TenantAdmin (primer caso de 403 dependiente
+  del dato, ADR 7).
+- **PlatformAdmin no ve datos de negocio** de los tenants.
+- Datos nuevos para F2 que no estaban en el plan: costo y punto de reorden del producto, moneda y tasa de impuesto del
+  tenant, subtotal e impuesto por línea y por orden.
 - `ProblemTypes`: la base del URI del catálogo vive en código, no en appsettings (es parte del contrato, no del entorno).
 - Errores del framework (404, 405, 401, 429) con el `type` del catálogo vía `UseStatusCodePages` + `CustomizeProblemDetails`.
 - Seguridad: JWT de `dotnet user-jwts`, fallback policy (autenticado) y política `PlatformAdmin`.

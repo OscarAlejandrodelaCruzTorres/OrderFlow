@@ -136,5 +136,3 @@ prueba.
 - **Cosmos DB:** capa gratuita; útil para conocerlo, descartado para OrderFlow (modelo relacional, RLS de SQL Server).
 - **Entra ID / Entra External ID:** autenticación de usuarios (opción del ADR 13).
 - **Azure DevOps:** alternativa a GitHub Actions, común en empresas.
-EOF
-cd /mnt/user-data/outputs/orderflow-arquitectura && grep -n "docs/azure.md\|ADR 14" ARQUITECTURA.md | head
