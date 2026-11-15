@@ -72,6 +72,8 @@ Respuesta:
 - `Idempotency-Key` en `POST /api/v1/orders`: misma clave y mismo cuerpo → misma respuesta, sin duplicar.
 - `Location` en 201 y 202.
 - `Deprecation` y `Sunset` en endpoints de versiones en retiro.
+- `traceresponse` en **toda** respuesta, exitosa o no: el id W3C del request (`00-<trace-id>-<span-id>-<flags>`), el
+  que se reporta a soporte. Expuesto por CORS para que lo lean los clientes de navegador (ADR-018).
 
 ## 7. Errores
 Siempre ProblemDetails (RFC 9457), con el `type` del catálogo de `docs/errores.md`:
@@ -90,6 +92,7 @@ Validación de campos (400) agrega `errors`:
 { "type": ".../errores.md#validation", "title": "One or more validation errors occurred.", "status": 400,
   "errors": { "quantity": [ "Must be greater than 0." ] }, "traceId": "..." }
 ```
+El `traceId` del cuerpo es el mismo que trae el header `traceresponse` de esa respuesta.
 
 ## 8. Versionado
 - La versión va en la ruta (`/api/v1`). Agregar campos o endpoints **no** rompe; quitar o renombrar campos, cambiar

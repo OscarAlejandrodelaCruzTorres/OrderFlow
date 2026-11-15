@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using OrderFlow.Api.Hosting;
+
 namespace OrderFlow.IntegrationTests.Support;
 
 /// <summary>
@@ -20,7 +22,7 @@ public sealed class OrderFlowApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // 1. Not Development: no user secrets, no user-jwts settings, no Swagger.
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(AppEnvironments.Testing);
 
         // 2. Test settings, added after appsettings.json, so they win.
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(

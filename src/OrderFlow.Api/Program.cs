@@ -3,12 +3,24 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 using OrderFlow.Api.Extensions;
+using OrderFlow.Api.Hosting;
 using OrderFlow.Api.Middleware;
 using OrderFlow.Api.RateLimiting;
 using OrderFlow.Application.Health;
 using OrderFlow.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Fail at startup, not on the first request that needs the service. ValidateOnBuild checks that every
+// registration can be built (a one-time cost, so in every environment). ValidateScopes catches a scoped
+// service captured by a singleton; it costs on every resolution, so only in Development and the tests.
+builder.Host.UseDefaultServiceProvider((context, options) =>
+{
+    var environment = context.HostingEnvironment;
+
+    options.ValidateOnBuild = true;
+    options.ValidateScopes = environment.IsDevelopment() || environment.IsEnvironment(AppEnvironments.Testing);
+});
 
 builder.Services
     .AddControllers()
@@ -27,8 +39,12 @@ builder.Services
 
 var app = builder.Build();
 
-// Outermost, so it logs the final status of every request, including the responses produced by the
-// exception handler and the 401/403/429 rejections.
+// First of all: it only registers a callback for when the response starts, and the response can start in any
+// middleware below, so every response, successful or not, carries the trace id in the traceresponse header.
+app.UseMiddleware<TraceResponseMiddleware>();
+
+// Wraps everything else, so it logs the final status of every request, including the responses produced by
+// the exception handler and the 401/403/429 rejections.
 app.UseMiddleware<RequestLoggingMiddleware>();
 
 // Turns any exception from the middleware below into ProblemDetails.

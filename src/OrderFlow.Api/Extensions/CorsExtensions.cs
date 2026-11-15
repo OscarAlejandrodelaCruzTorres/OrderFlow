@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 using OrderFlow.Api.Cors;
+using OrderFlow.Api.Observability;
 
 namespace OrderFlow.Api.Extensions;
 
@@ -27,14 +28,15 @@ public static class CorsExtensions
             {
                 // Only what exists today: GET and the Authorization header. Write methods and their headers
                 // (Content-Type, If-Match, Idempotency-Key) are added in F6 with the endpoints that need them.
-                // Tokens travel in the Authorization header, so credentials stay disabled. Retry-After and
-                // api-supported-versions are exposed so the client can read them.
+                // Tokens travel in the Authorization header, so credentials stay disabled. The browser hides any
+                // response header not listed here from the client's code, so Retry-After, api-supported-versions
+                // and traceresponse (the trace id to report to support) are exposed explicitly.
                 options.AddDefaultPolicy(policy =>
                 {
                     policy.WithOrigins(settings.Value.AllowedOrigins)
                         .WithMethods(HttpMethods.Get)
-                        .WithHeaders(HeaderNames.Authorization)
-                        .WithExposedHeaders(HeaderNames.RetryAfter, "api-supported-versions");
+                        .WithHeaders(HeaderNames.Authorization, "traceparent", "tracestate")
+                        .WithExposedHeaders(HeaderNames.RetryAfter, "api-supported-versions", TraceHeaders.TraceResponse);
                 });
             });
 

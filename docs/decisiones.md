@@ -26,8 +26,9 @@ Estados: **Propuesto** · **Aceptado** · **Reemplazado** · **Descartado**.
 | 015 | Base de datos en Azure SQL desde F1 (free tier, solo Entra, SKU explícito para dedicadas) | Aceptado | 2026-11-08 |
 | 016 | Mantener .NET 10 (LTS); no migrar a .NET 11 por ahora | Descartado (la migración) | 2026-11-10 |
 | 017 | Composition root en su propio proyecto (`OrderFlow.Composition`); ajusta el ADR 001 | Aceptado | 2026-11-14 |
+| 018 | El trace id viaja en todas las respuestas (header `traceresponse`) | Propuesto | 2026-11-15 |
 
-El texto de los ADR 001–015 está resumido en `docs/ARQUITECTURA.md`, sección 3; los ADR 016 y 017 están completos abajo. Al cerrar cada fase se completan aquí
+El texto de los ADR 001–015 está resumido en `docs/ARQUITECTURA.md`, sección 3; los ADR 016 a 018 están completos abajo. Al cerrar cada fase se completan aquí
 los que esa fase haya puesto a prueba, con lo aprendido.
 
 ---
@@ -54,6 +55,38 @@ Lo que se eligió, en una o dos frases claras.
 - Lo que cuesta o complica.
 - Lo que cambia en el código, las pruebas o la operación.
 ```
+
+## ADR-018 · El trace id viaja en todas las respuestas (header `traceresponse`)
+Estado: Propuesto (pendiente de la revisión del arquitecto) · Fecha: 2026-11-15 · Fase: F0
+
+### Contexto
+El trace id solo llegaba al cliente en el cuerpo de los errores: el `traceId` del ProblemDetails (ADR 006), que agrega
+.NET y no nuestro `CustomizeProblemDetails`. Una respuesta exitosa con datos incorrectos (un 200 con roles equivocados,
+un pedido con el total mal calculado) no tenía un id que reportar, y soporte tenía que buscarla por hora, ruta y
+usuario. El id ya existe en cada request (el `Activity` que crea ASP.NET Core, W3C Trace Context); solo faltaba
+devolverlo.
+
+### Decisión
+Toda respuesta lleva el header `traceresponse` con el id W3C del request (`00-<trace-id>-<span-id>-<flags>`). Lo
+escribe `TraceResponseMiddleware`, el primero del pipeline, en `Response.OnStarting`, y la policy de CORS lo expone.
+
+### Alternativas consideradas
+- `traceId` en el cuerpo de cada respuesta: obliga a tocar cada DTO y mezcla datos de negocio con diagnóstico.
+- `X-Trace-Id` o `X-Request-Id`: comunes, pero no estándar. `traceresponse` es la contraparte de `traceparent` que
+  propone W3C Trace Context nivel 2.
+- Escribir el header al entrar o después de `await next`: al entrar se pierde con el `Response.Clear()` del exception
+  handler, y después puede ser tarde porque la respuesta ya empezó. `OnStarting` cubre los dos casos.
+- Registrar el middleware más abajo (después de la autorización): los 401, 403, preflights y redirecciones saldrían
+  sin el header.
+
+### Consecuencias
+- Cualquier respuesta, exitosa o no, se rastrea en logs y trazas con el id que recibió el cliente.
+- En los errores, header y cuerpo traen el mismo id. `TraceResponseTests` lo protege (dos pruebas: 200 con header;
+  401 con header igual al `traceId` del cuerpo).
+- El id sale del `Activity` del request (`IHttpActivityFeature`), no de `Activity.Current`, que al enviar los headers
+  podría ser otro span.
+- Exponerlo no revela nada interno: es aleatorio y solo sirve para buscar.
+- Header nuevo en el contrato: documentado en `guia-api.md` §6. Angular lo mostrará como referencia en A1.
 
 ## ADR-017 · Composition root en su propio proyecto
 Estado: Aceptado (ajusta el ADR 001) · Fecha: 2026-11-14 · Fase: F0
@@ -135,6 +168,11 @@ Decisiones y hallazgos:
   en runtime a los de ASP.NET Core 10 (detectado en la revisión; regla en `CLAUDE.md`).
 - CORS solo con lo que existe hoy (GET + `Authorization`); los verbos de escritura se abren en F6.
 - Rate limiting particionado por `sub`, no por nombre; en F3 se combina con el tenant.
+- **Después del cierre (2026-11-15), en el repaso de F0:** `ValidateOnBuild` en todos los entornos (un registro que
+  falta hace fallar el arranque, no el primer request que lo usa) y `ValidateScopes` solo en Development y
+  Testing (cuesta en cada resolución). El nombre `Testing` vive en `AppEnvironments`, compartido con las pruebas.
+  ADR-018 (`traceresponse`). Hallazgo: el `traceId` del ProblemDetails lo pone .NET; nuestro hook solo cambia el
+  `type`. 20 pruebas.
 
 ### F0.5 — Casos de uso del producto
 **Cierre: 2026-11-14.** Sin código. `docs/casos-de-uso.md` aprobado: 16 decisiones de producto, matriz de actores y
