@@ -338,6 +338,13 @@ permiso (403) y reintento con la misma `Idempotency-Key` (misma respuesta, sin d
 `SaveChangesInterceptor` → `AuditLog`; Outbox en la misma transacción; `BackgroundService` que la despacha.
 *Listo cuando:* crear y modificar una orden deja auditoría y un evento despachado.
 
+**Candidata para ampliar F7** (anotada en el repaso de F0, 2026-11-16; no está aceptada: se decide al llegar a F7 y se
+registra en un ADR con costo y alternativas).
+
+| Idea | Qué hace | Tecnología |
+| --- | --- | --- |
+| Correo *"Tu pedido fue registrado"* como consumidor del Outbox | el `BackgroundService` envía el correo después de que el pedido y su evento se guardaron en la misma transacción; nunca dentro del request (evita el *dual write*) | `IEmailSender` en Application, Azure Communication Services Email en Infrastructure, Mailpit o smtp4dev en desarrollo; plantilla localizada con el idioma del tenant o del usuario; idempotente por el id del evento |
+
 #### F8 — Calidad continua
 Completar la suite (las pruebas ya vienen de cada fase): huecos de cobertura en lo crítico, pruebas de endpoints con
 `WebApplicationFactory`, prueba de humo de carga (k6 o NBomber) con presupuesto de tiempo por endpoint.
@@ -440,6 +447,12 @@ Estimado: 12–15 horas. Se agenda después del Bloque 1, o antes si una vacante
 | A4 | Formularios de alta/edición con las mismas validaciones que la API, manejo de 409/412/422 | F6 |
 | A5 | Pantalla de admin de tenants: alta, seguimiento de la operación (202) y baja | F4 |
 | A6 | Asistente de IA en la UI | F11 |
+
+**Candidata para el carril Angular** (anotada en el repaso de F0, 2026-11-16; no está aceptada): telemetría desde el
+navegador. Angular crea la traza con OpenTelemetry para web y envía `traceparent` solo a los orígenes de la API; la
+API la continúa sin cambios de código. Requiere permitir `traceparent` y `tracestate` en `WithHeaders` de CORS, un
+collector propio (nunca credenciales del backend en el navegador), muestreo agresivo en el cliente y decidir si la
+API respeta el flag de muestreo que llega de internet. Encaja después de A1, ya en el Bloque 2.
 
 ## 6. Calendario y práctica de entrevistas
 

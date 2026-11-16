@@ -24,6 +24,11 @@ GET {{host}}/api/v1/me
 GET {{host}}/api/v1/me
 Authorization: Bearer {{tokenPlatformAdmin}}
 
+### Con token y traceparent → traceresponse con el MISMO trace-id (0af76519…) y otro span-id
+GET {{host}}/api/v1/me
+Authorization: Bearer {{tokenPlatformAdmin}}
+traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+
 ### ─── Admin: política PlatformAdmin, versión neutral ────────────────────
 
 ### Sin token → 401, type #unauthorized
