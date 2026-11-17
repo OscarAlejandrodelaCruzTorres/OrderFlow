@@ -13,6 +13,9 @@ param adminObjectId string
 @description('Public IP allowed through the firewall. Passed at deploy time, never committed.')
 param clientIp string
 
+@description('One free-tier database per name. The free offer is per database, up to 10 per subscription.')
+param databaseNames array
+
 resource server 'Microsoft.Sql/servers@2025-01-01' = {
   name: serverName
   location: location
@@ -40,18 +43,23 @@ resource clientFirewallRule 'Microsoft.Sql/servers/firewallRules@2025-01-01' = {
   }
 }
 
-resource catalogDatabase 'Microsoft.Sql/servers/databases@2025-01-01' = {
-  parent: server
-  name: 'OrderFlowCF_Catalog'
-  location: location
-  sku: {
-    name: 'GP_S_Gen5_2'
-    tier: 'GeneralPurpose'
+resource databases 'Microsoft.Sql/servers/databases@2025-01-01' = [
+  for name in databaseNames: {
+    parent: server
+    name: name
+    location: location
+    sku: {
+      name: 'GP_S_Gen5'
+      tier: 'GeneralPurpose'
+      family: 'Gen5'
+      capacity: 2
+    }
+    properties: {
+      useFreeLimit: true
+      freeLimitExhaustionBehavior: 'AutoPause'
+    }
   }
-  properties: {
-    useFreeLimit: true
-    freeLimitExhaustionBehavior: 'AutoPause'
-  }
-}
+]
 
 output serverFqdn string = server.properties.fullyQualifiedDomainName
+output databaseIds array = [for (name, i) in databaseNames: databases[i].id]
