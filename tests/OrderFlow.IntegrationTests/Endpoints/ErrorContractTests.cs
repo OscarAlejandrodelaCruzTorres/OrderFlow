@@ -2,6 +2,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 
+using Microsoft.AspNetCore.Http;
+
+using OrderFlow.Api.Errors;
 using OrderFlow.IntegrationTests.Support;
 
 namespace OrderFlow.IntegrationTests.Endpoints;
@@ -28,9 +31,15 @@ public sealed class ErrorContractTests(OrderFlowApiFactory factory) : IClassFixt
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var type = problem.GetProperty("type").GetString();
         var traceId = problem.GetProperty("traceId").GetString();
+        var instance = problem.GetProperty("instance").GetString();
+        var detail = problem.GetProperty("detail").GetString();
+        var status = problem.GetProperty("status").GetInt32();
 
         // EndsWith keeps the catalog's base URI out of the test.
         Assert.EndsWith("#unauthorized", type);
+        Assert.Equal(MeUrl, instance);
+        Assert.Equal(ProblemDetailMessages.ForStatusCode(StatusCodes.Status401Unauthorized), detail);
+        Assert.Equal(StatusCodes.Status401Unauthorized, status);
         Assert.False(string.IsNullOrEmpty(traceId));
     }
 }
